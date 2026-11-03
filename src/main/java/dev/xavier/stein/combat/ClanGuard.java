@@ -13,21 +13,23 @@ import dev.xavier.stein.loader.api.Entities;
 import dev.xavier.stein.loader.api.Targeting;
 
 /**
- * What Combat does to the allies on screen and in a fight — my clan, the marked nicks and the
- * allied clans alike ({@link Teams#isAlly}): hits on them are cancelled before reaching the server
- * (and can go through to whoever is behind), and the hide key takes them off the screen in one of
- * three styles ({@link CombatConfig#hideStyle}).
+ * What Combat does to my clan and to my allies on screen and in a fight. My clan ({@link
+ * Teams#isClanmate}) is shielded: hits on it are cancelled before reaching the server (and can go
+ * through to whoever is behind), and the hide key takes it off the screen in one of three styles
+ * ({@link CombatConfig#hideStyle}). The other allies — marked nicks and allied clans — are never
+ * shielded: they are always seen and always hit, and the hide key can at most turn them into ghosts
+ * ({@link CombatConfig#ghostAllies}) that still take every hit.
  */
 final class ClanGuard {
 
-    /** The ally disappears from the screen; the aim still finds them (and Ally Protect decides). */
+    /** My clan disappears from the screen; the aim still finds them (and Clan Protect decides). */
     static final int DISAPPEAR = 0;
 
-    /** The ally stays as a 15% silhouette, and hits go through them as if they were not there. */
+    /** My clan stays as a faint silhouette, and hits go through them as if they were not there. */
     static final int GHOST = 1;
 
     /**
-     * As if the ally did not exist: nothing on screen, and hits and right clicks go through them to
+     * As if my clan did not exist: nothing on screen, and hits and right clicks go through them to
      * whatever is behind.
      */
     static final int GONE = 2;
@@ -38,13 +40,12 @@ final class ClanGuard {
     private final SteinCombat mod;
 
     /**
-     * The allies are hidden from the screen (the key toggles it). Not saved: it starts off every
-     * session — opening the game without the allies on screen, without remembering why, would be
-     * worse than pressing the key again.
+     * The hide key is on. Not saved: it starts off every session — opening the game without the
+     * clan on screen, without remembering why, would be worse than pressing the key again.
      */
     boolean hiding;
 
-    /** Sending the hit that goes through an ally (see {@link #behind}). */
+    /** Sending the hit that goes through a clanmate (see {@link #behind}). */
     private boolean hittingThrough;
 
     /** The self-test checks the decisions without sending a hit to whoever is behind. */
@@ -58,9 +59,10 @@ final class ClanGuard {
     }
 
     /**
-     * The hit cancelled before it reaches the server: on an ally with Ally Protect on, and always
-     * on a ghost or gone ally — those two are not there for hits, so the hit goes to whoever is
-     * behind them even without the protection.
+     * The hit cancelled before it reaches the server: on a clanmate with Clan Protect on, and
+     * always on a clanmate hidden as a ghost or gone — those two are not there for hits, so the hit
+     * goes to whoever is behind them even without the protection. <b>Never on an ally outside my
+     * clan</b>, ghost or not: the hit always lands on them.
      */
     boolean onAttackEntity(Object target) {
         if (!Entities.isPlayer(target)) {
@@ -68,12 +70,12 @@ final class ClanGuard {
         }
         String nick = Entities.name(target);
         boolean passThrough = passesThrough(target, nick);
-        if (!passThrough && !(mod.config.protectAllies && mod.teams.isAlly(nick))) {
+        if (!passThrough && !(mod.config.protectAllies && mod.teams.isClanmate(nick))) {
             return false;
         }
-        // No action bar notice: whoever turned on "do not hit my allies" knows what they asked
-        // for, and text flashing in the middle of a fight gets in the way more than it informs (and
-        // it covers what the server writes there).
+        // No action bar notice: whoever turned on "do not hit my clan" knows what they asked for,
+        // and text flashing in the middle of a fight gets in the way more than it informs (and it
+        // covers what the server writes there).
         boolean through = passThrough || mod.config.clanHitThrough;
         Object behind = through && !hittingThrough && !dryRun ? behind(target) : null;
         if (behind != null) {
@@ -90,7 +92,7 @@ final class ClanGuard {
         if (LOG_HITS) {
             mod.log()
                     .info(
-                            "hit on an ally cancelled ("
+                            "hit on my clan cancelled ("
                                     + nick
                                     + ")"
                                     + (behind == null
@@ -101,8 +103,8 @@ final class ClanGuard {
     }
 
     /**
-     * A right click on a gone ally carries on as if nobody were there: the held item is used. The
-     * other styles leave it alone (a right click does not hurt anyone).
+     * A right click on a gone clanmate carries on as if nobody were there: the held item is used.
+     * The other styles leave it alone (a right click does not hurt anyone).
      */
     boolean onInteractEntity(Object target) {
         return mod.config.hideStyle == GONE
@@ -111,18 +113,19 @@ final class ClanGuard {
     }
 
     /**
-     * The hit that goes through the ally: in the line of aim, within the game's reach and before
-     * the first block, the nearest one that is not me, not shielded and alive — or null. The game's
-     * own aiming math (each entity's box with the collision border), only without stopping at the
-     * first: the ally in front is left out.
+     * The hit that goes through the clanmate: in the line of aim, within the game's reach and
+     * before the first block, the nearest one that is not me, not a shielded clanmate and alive —
+     * or null. An ally outside my clan in that line takes the hit like anyone. The game's own
+     * aiming math (each entity's box with the collision border), only without stopping at the
+     * first: the clanmate in front is left out.
      */
-    private Object behind(Object ally) {
+    private Object behind(Object clanmate) {
         Targeting.Ray ray =
                 Targeting.raycast(
                         Targeting.query()
                                 .living()
                                 .cutAtBlock()
-                                .exclude(ally)
+                                .exclude(clanmate)
                                 .exclude(Entities.self()));
         for (Targeting.Hit hit : ray.hits) {
             Object e = hit.entity;
@@ -130,23 +133,23 @@ final class ClanGuard {
                 break;
             }
             if (Entities.isPlayer(e) && shielded(e, Entities.name(e))) {
-                continue; // another ally in line: the hit goes through them too
+                continue; // another clanmate in line: the hit goes through them too
             }
             return e;
         }
         return null;
     }
 
-    /** Hits never land on them: protected, or hidden as a ghost or gone. */
+    /** Hits never land on them: a clanmate protected, or hidden as a ghost or gone. */
     private boolean shielded(Object entity, String nick) {
-        return mod.teams.isAlly(nick)
+        return mod.teams.isClanmate(nick)
                 && (mod.config.protectAllies
                         || hidden(entity) && mod.config.hideStyle != DISAPPEAR);
     }
 
-    /** A hidden ally that hits go through: the ghost and gone styles. */
+    /** A hidden clanmate that hits go through: the ghost and gone styles. */
     private boolean passesThrough(Object entity, String nick) {
-        return mod.config.hideStyle != DISAPPEAR && hidden(entity) && mod.teams.isAlly(nick);
+        return mod.config.hideStyle != DISAPPEAR && hidden(entity) && mod.teams.isClanmate(nick);
     }
 
     /** The hide key is on and it is another player (never me, in third person). */
@@ -155,27 +158,34 @@ final class ClanGuard {
     }
 
     /**
-     * Allies disappear from the screen while the key is on, in the disappear and gone styles —
+     * My clan disappears from the screen while the key is on, in the disappear and gone styles —
      * body, armor, name and shadow. It is not the game's invisibility: nothing is left, not even
-     * the armor. They are still in the Tab list, on the minimap and in messages, in the ally color.
+     * the armor. They are still in the Tab list, on the minimap and in messages, in the clan color.
+     * Allies outside my clan never disappear.
      */
     boolean onHideEntity(Object entity) {
         if (!hiding || mod.config.hideStyle == GHOST || !Entities.isPlayer(entity)) {
             return false;
         }
-        return entity != Entities.self() && mod.teams.isAlly(Entities.name(entity));
+        return entity != Entities.self() && mod.teams.isClanmate(Entities.name(entity));
     }
 
     /**
-     * Ghost style: with the hide key on, allies become the 15% silhouette the game already draws
-     * for invisible teammates, without armor and without the held item — whoever is fighting behind
-     * them can be seen, and hits go through them ({@link #onAttackEntity}).
+     * With the hide key on, a ghost: the faint silhouette the game already draws for invisible
+     * teammates, without armor and without the held item, so whoever is fighting behind can be
+     * seen. My clan becomes one in the ghost style (and hits go through it, {@link
+     * #onAttackEntity}); an ally outside my clan becomes one with "Ghost allies", in any style, and
+     * still takes every hit.
      */
     boolean onGhostEntity(Object entity) {
-        if (!hiding || mod.config.hideStyle != GHOST || !Entities.isPlayer(entity)) {
+        if (!hiding || !Entities.isPlayer(entity) || entity == Entities.self()) {
             return false;
         }
-        return entity != Entities.self() && mod.teams.isAlly(Entities.name(entity));
+        String nick = Entities.name(entity);
+        if (mod.teams.isClanmate(nick)) {
+            return mod.config.hideStyle == GHOST;
+        }
+        return mod.config.ghostAllies && mod.teams.isAlly(nick);
     }
 
     /**

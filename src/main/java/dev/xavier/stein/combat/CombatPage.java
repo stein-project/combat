@@ -186,7 +186,7 @@ final class CombatPage {
                         },
                         keys.clanProtect,
                         "clanProtect"));
-        // Ally Protect's sub-option: the hit cancelled on an ally goes through to whoever is
+        // Clan Protect's sub-option: the hit cancelled on my clan goes through to whoever is
         // behind.
         page.option(
                 toggle(
@@ -202,8 +202,8 @@ final class CombatPage {
                         v -> guard.hiding = v,
                         keys.hide,
                         "hiddenAllies"));
-        // How the hide key hides: disappearing (the aim still finds them), as ghosts (hits go
-        // through) or as if they did not exist.
+        // How the hide key hides my clan: disappearing (the aim still finds them), as ghosts (hits
+        // go through) or as if they did not exist.
         page.option(
                 Option.cycle(
                         INDENT + tr("steincombat.hideStyle"),
@@ -217,12 +217,18 @@ final class CombatPage {
                             c.hideStyle = i;
                             mod.save();
                         }));
+        // The other allies are never hidden nor protected: at most ghosts that still take hits.
+        page.option(
+                toggle(
+                        INDENT + tr("steincombat.ghostAllies"),
+                        () -> c.ghostAllies,
+                        v -> c.ghostAllies = v));
         page.option(
                 toggle(
                                 INDENT + tr("steincombat.ghostHideName"),
                                 () -> c.ghostHideName,
                                 v -> c.ghostHideName = v)
-                        .visibleWhen(() -> c.hideStyle == ClanGuard.GHOST));
+                        .visibleWhen(() -> c.hideStyle == ClanGuard.GHOST || c.ghostAllies));
         page.option(
                 toggle(
                                 INDENT + tr("steincombat.presenceMarker"),
@@ -264,6 +270,7 @@ final class CombatPage {
                     c.protectAllies = d.protectAllies;
                     c.clanHitThrough = d.clanHitThrough;
                     c.hideStyle = d.hideStyle;
+                    c.ghostAllies = d.ghostAllies;
                     c.ghostHideName = d.ghostHideName;
                     c.presenceMarker = d.presenceMarker;
                     c.markerStyle = d.markerStyle;

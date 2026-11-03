@@ -338,8 +338,9 @@ final class Diagnostics {
     }
 
     /**
-     * The third part: hiding and protecting cover every ally — a marked nick and my clan alike —,
-     * in each hiding style, with "My clan is allied" as the clan's condition.
+     * The third part: my clan is protected and hidden in each hiding style, with "My clan is
+     * allied" as its condition; a marked ally outside my clan is never protected nor hidden, and at
+     * most becomes a ghost that still takes hits.
      */
     private void guardTest(String other, String clanmate) {
         CombatConfig config = mod.config;
@@ -348,6 +349,7 @@ final class Diagnostics {
         boolean savedHiding = guard.hiding;
         boolean savedProtect = config.protectAllies;
         int savedStyle = config.hideStyle;
+        boolean savedGhostAllies = config.ghostAllies;
         boolean savedHideName = config.ghostHideName;
         boolean savedClanAllies = config.clanAllies;
         try {
@@ -357,7 +359,7 @@ final class Diagnostics {
             guard.dryRun = true; // the self-test's hit is idle: no hitting whoever is behind
             guard.hiding = true;
             mod.save();
-            if (other != null) {
+            if (other != null && !teams.isClanmate(other)) {
                 Object e = Entities.player(other);
                 config.addAlly(other);
                 mod.save();
@@ -369,7 +371,7 @@ final class Diagnostics {
                     mod.log()
                             .info(TAG + other + " is not in the world: hit and screen not checked");
                 } else {
-                    styleChecks(other, e);
+                    allyChecks(other, e);
                 }
                 config.removeAlly(other);
                 mod.save();
@@ -389,26 +391,62 @@ final class Diagnostics {
             guard.hiding = savedHiding;
             config.protectAllies = savedProtect;
             config.hideStyle = savedStyle;
+            config.ghostAllies = savedGhostAllies;
             config.ghostHideName = savedHideName;
             config.clanAllies = savedClanAllies;
             mod.save();
         }
     }
 
-    /** One ally (in the world) through the three styles, with the protection on and off. */
+    /**
+     * A marked ally outside my clan (in the world): in every style, with the protection on, the hit
+     * always lands and they never disappear; with "Ghost allies" they become a ghost, and only
+     * that.
+     */
+    private void allyChecks(String nick, Object e) {
+        CombatConfig config = mod.config;
+        ClanGuard guard = mod.guard;
+        config.protectAllies = true;
+        for (int style = ClanGuard.DISAPPEAR; style <= ClanGuard.GONE; style++) {
+            config.hideStyle = style;
+            config.ghostAllies = true;
+            check(
+                    !guard.onAttackEntity(e),
+                    nick + ": hit on an ally cancelled (style " + style + ")");
+            check(!guard.onHideEntity(e), nick + ": ally disappeared (style " + style + ")");
+            check(!guard.onInteractEntity(e), nick + ": right click let through an ally");
+            check(guard.onGhostEntity(e), nick + ": ally did not become a ghost");
+            config.ghostHideName = true;
+            check(guard.ghostName(e) != null, nick + ": ally ghost name not hidden");
+            config.ghostHideName = false;
+            check(
+                    guard.ghostName(e) == null,
+                    nick + ": ally ghost name hidden with the option off");
+            config.ghostAllies = false;
+            check(!guard.onGhostEntity(e), nick + ": ally ghost with \"Ghost allies\" off");
+            check(!guard.onAttackEntity(e), nick + ": hit on a solid ally cancelled");
+        }
+        guard.hiding = false;
+        config.ghostAllies = true;
+        check(!guard.onGhostEntity(e), nick + ": ally ghost with the hide key off");
+        guard.hiding = true;
+        config.hideStyle = ClanGuard.DISAPPEAR;
+    }
+
+    /** One clanmate (in the world) through the three styles, with the protection on and off. */
     private void styleChecks(String nick, Object e) {
         CombatConfig config = mod.config;
         ClanGuard guard = mod.guard;
         config.protectAllies = true;
         config.hideStyle = ClanGuard.DISAPPEAR;
-        check(guard.onAttackEntity(e), nick + ": hit on an ally was not cancelled");
-        check(guard.onHideEntity(e), nick + ": ally did not disappear from the screen");
+        check(guard.onAttackEntity(e), nick + ": hit on my clan was not cancelled");
+        check(guard.onHideEntity(e), nick + ": clanmate did not disappear from the screen");
         check(!guard.onGhostEntity(e), nick + ": became a ghost in the disappear style");
         check(!guard.onInteractEntity(e), nick + ": right click cancelled in the disappear style");
         config.protectAllies = false;
         check(!guard.onAttackEntity(e), nick + ": hit cancelled with the protection off");
         config.hideStyle = ClanGuard.GHOST;
-        check(guard.onGhostEntity(e), nick + ": ally did not become a ghost");
+        check(guard.onGhostEntity(e), nick + ": clanmate did not become a ghost");
         check(!guard.onHideEntity(e), nick + ": disappeared in the ghost style");
         check(guard.onAttackEntity(e), nick + ": hit did not go through the ghost");
         config.ghostHideName = false;
@@ -416,9 +454,9 @@ final class Diagnostics {
         config.ghostHideName = true;
         check(guard.ghostName(e) != null, nick + ": ghost name not hidden");
         config.hideStyle = ClanGuard.GONE;
-        check(guard.onHideEntity(e), nick + ": ally still on screen in the gone style");
-        check(guard.onAttackEntity(e), nick + ": hit did not go through a gone ally");
-        check(guard.onInteractEntity(e), nick + ": right click not let through a gone ally");
+        check(guard.onHideEntity(e), nick + ": clanmate still on screen in the gone style");
+        check(guard.onAttackEntity(e), nick + ": hit did not go through a gone clanmate");
+        check(guard.onInteractEntity(e), nick + ": right click not let through a gone clanmate");
         guard.hiding = false;
         check(!guard.onHideEntity(e), nick + ": hidden with the hide key off");
         check(!guard.onGhostEntity(e), nick + ": ghost with the hide key off");

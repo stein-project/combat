@@ -9,9 +9,10 @@ one of them (`features` in `steinmod.json`).
 
 - **Team**: allies and enemies by nick or clan tag (the Panel, or a key aimed at a player), the members of your
   clan as allies, name colors by relation in the Tab list and above heads, and the lists from a JSON file at a URL
-  (one per clan, with per-server sections). Hits on your allies are cancelled (and can go through to whoever is
-  behind), and a key hides them from the screen: they disappear, become ghosts that hits go through, or are gone as
-  if they were not there, with footprints or a square on the ground where they are.
+  (one per clan, with per-server sections). Hits on your clan are cancelled (and can go through to whoever is
+  behind), and a key hides it from the screen: it disappears, becomes ghosts that hits go through, or is gone as if
+  it were not there, with footprints or a square on the ground where they are. Other allies are never protected
+  nor hidden: with the same key they can become ghosts, and they still take every hit.
 - **Combat and movement**: No Hit Delay, Autoclick, toggle sprint and Auto Walk.
 - **Target**: head, name, distance, health, armor and held item of whoever you are fighting, on the HUD grid.
 - **Automations**: Auto Armor, Auto Refill (from the server's virtual chest), Smart Effect (golden apple, Speed and
