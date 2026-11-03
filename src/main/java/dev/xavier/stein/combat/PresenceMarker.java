@@ -156,7 +156,7 @@ final class PresenceMarker {
                 continue;
             }
             String nick = Entities.name(p);
-            if (nick == null || !mod.teams.isAlly(nick)) {
+            if (nick == null || !mod.teams.isClanmate(nick)) {
                 continue;
             }
             Track t = tracks.get(p);

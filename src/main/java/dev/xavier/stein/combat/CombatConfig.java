@@ -43,22 +43,29 @@ final class CombatConfig {
     /** Toggle sprint: the mod keeps sprinting without the game's sprint key (the G key). */
     boolean toggleSprint = true;
 
-    /** A hit on an ally (my clan, a marked nick or an allied clan) is cancelled. */
+    /** A hit on my clan is cancelled. Allies outside my clan are never protected. */
     boolean protectAllies = true;
 
     /**
-     * The hit cancelled on an ally goes to the first one in the line of aim, behind them and within
-     * reach, who is not an ally. With nobody there, it is only cancelled.
+     * The hit cancelled on someone of my clan goes to the first one in the line of aim, behind them
+     * and within reach, who is not in my clan (an ally outside it takes the hit). With nobody
+     * there, it is only cancelled.
      */
     boolean clanHitThrough = true;
 
     /**
-     * How the hide key hides the allies: {@link ClanGuard#DISAPPEAR}, {@link ClanGuard#GHOST} or
+     * How the hide key hides my clan: {@link ClanGuard#DISAPPEAR}, {@link ClanGuard#GHOST} or
      * {@link ClanGuard#GONE}.
      */
     int hideStyle = ClanGuard.DISAPPEAR;
 
-    /** Ghost style: no name above the ghosts' heads either. */
+    /**
+     * With the hide key on, an ally outside my clan becomes a ghost instead of staying solid. They
+     * are still there for everything else — including hits.
+     */
+    boolean ghostAllies = true;
+
+    /** No name above the ghosts' heads either (my clan's and the allies'). */
     boolean ghostHideName = false;
 
     /**

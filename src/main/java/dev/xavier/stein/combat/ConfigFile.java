@@ -94,6 +94,7 @@ final class ConfigFile {
         if (o.has("hideStyle")) {
             c.hideStyle = clamp(o.get("hideStyle").getAsInt(), 0, ClanGuard.GONE);
         }
+        c.ghostAllies = bool(o, "ghostAllies", c.ghostAllies);
         c.ghostHideName = bool(o, "ghostHideName", c.ghostHideName);
         c.presenceMarker = bool(o, "presenceMarker", c.presenceMarker);
         if (o.has("markerStyle")) {
@@ -217,6 +218,7 @@ final class ConfigFile {
         o.addProperty("toggleSprint", c.toggleSprint);
         o.addProperty("protectAllies", c.protectAllies);
         o.addProperty("hideStyle", c.hideStyle);
+        o.addProperty("ghostAllies", c.ghostAllies);
         o.addProperty("ghostHideName", c.ghostHideName);
         o.addProperty("presenceMarker", c.presenceMarker);
         o.addProperty("markerStyle", c.markerStyle);

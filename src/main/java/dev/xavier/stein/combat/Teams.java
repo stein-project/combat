@@ -165,6 +165,22 @@ final class Teams {
                 && tag.equals(Clans.mine());
     }
 
+    /**
+     * In my clan, and only with "My clan is allied" on — which is what makes the clan count as
+     * allied. It is what hiding and hit protection look at: marked allies and allied clans are left
+     * out of both (they can only become ghosts, and they always take hits).
+     *
+     * <p>Marked as an enemy beats everything, here too: an enemy from my own clan is neither
+     * protected nor hidden.
+     */
+    boolean isClanmate(String nick) {
+        if (!mod.config.clanAllies || nick == null || isMe(nick) || isEnemy(nick)) {
+            return false;
+        }
+        String mine = Clans.mine();
+        return mine != null && mine.equals(Clans.of(nick));
+    }
+
     /** The player is never on any list. */
     static boolean isMe(String nick) {
         return Players.self() != null && nick.equalsIgnoreCase(Players.self());

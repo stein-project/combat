@@ -2,6 +2,7 @@
   "toggleSprint": true,
   "protectAllies": true,
   "hideStyle": 0,
+  "ghostAllies": true,
   "ghostHideName": false,
   "presenceMarker": true,
   "markerStyle": 0,
