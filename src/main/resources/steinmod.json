@@ -1,7 +1,7 @@
 {
   "id": "steincombat",
   "name": "Combat",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "author": "X4vieer",
   "description": "Allies and enemies you mark (players and clans, or a list from a URL), a sprint toggle key, Auto Walk, the nearest enemy's distance and your target's health on the HUD grid. Some servers do not allow its features: check the rules of where you play.",
   "entry": "dev.xavier.stein.combat.SteinCombat",
