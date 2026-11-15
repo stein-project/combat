@@ -20,14 +20,15 @@ import dev.xavier.stein.loader.api.WorldRender;
 import java.util.List;
 
 /**
- * Loot Radar: valuable items on the ground (the Valuable Items list) stand out, each rule with its
- * own style and color — <b>Glow</b>, an outline seen through any block or entity; <b>Beacon</b>, a
- * beam from the sky over the item, seen from far away like a waypoint; <b>Marker</b>, the item's
- * name and distance floating over it. An arrow at the edge of the screen points to the ones out of
- * view, and a sound says when a valuable one drops.
+ * Loot Radar: valuable items on the ground (the Treasure List) stand out, any drop, each rule with
+ * its own style and color, set in Loot Radar's section — <b>Glow</b>, an outline seen through any
+ * block or entity; <b>Beacon</b>, a beam from the sky over the item, seen from far away like a
+ * waypoint; <b>Marker</b>, the item's name and distance floating over it — or not marked at all.
+ * Each style draws only itself. Every item in range shows, with no limit, fainter the farther it
+ * is; the list's order is the priority, and the higher rules are drawn on top. An arrow at the edge
+ * of the screen points to the ones out of view, and a sound says when a valuable one drops.
  *
- * <p>Options: how far, how many at most (the nearest), fading with the distance, and only what came
- * from a player's death. Only drawing: nothing about the game changes.
+ * <p>Only drawing: nothing about the game changes.
  */
 final class LootRadar {
 
@@ -45,11 +46,10 @@ final class LootRadar {
 
     private final SteinCombat mod;
 
-    /** The items to draw this frame, nearest first (no allocation per frame). */
-    private final GroundItems.Item[] shown = new GroundItems.Item[CombatConfig.RADAR_MAX_LIMIT];
+    /** The items to draw this frame, lowest priority first (reused: no allocation per frame). */
+    private final java.util.ArrayList<GroundItems.Item> shown = new java.util.ArrayList<>();
 
-    private final double[] shownDistance = new double[CombatConfig.RADAR_MAX_LIMIT];
-    private int shownCount;
+    private double[] shownDistance = new double[32];
 
     private long tick;
     private long lastSound = -SOUND_GAP;
@@ -123,7 +123,7 @@ final class LootRadar {
         List<GroundItems.Item> items = mod.groundItems.items();
         for (int i = 0, n = items.size(); i < n; i++) {
             GroundItems.Item it = items.get(i);
-            if (it.announced || !wanted(c, it)) {
+            if (it.announced || !wanted(it)) {
                 continue;
             }
             it.announced = true;
@@ -139,28 +139,26 @@ final class LootRadar {
         }
     }
 
-    /** In the world, every frame: each valuable item in its style. */
+    /** In the world, every frame: each valuable item in its style, the higher priority on top. */
     void frame(float partialTicks) {
         CombatConfig c = mod.config;
         if (!c.lootRadar || Entities.self() == null) {
-            shownCount = 0;
+            shown.clear();
             return;
         }
-        pick(c, partialTicks);
-        for (int i = 0; i < shownCount; i++) {
-            GroundItems.Item it = shown[i];
+        pick(c);
+        for (int i = 0, n = shown.size(); i < n; i++) {
+            GroundItems.Item it = shown.get(i);
             double d = shownDistance[i];
             drawItem = it;
             drawX = Entities.x(it.entity, partialTicks);
             drawY = Entities.y(it.entity, partialTicks);
             drawZ = Entities.z(it.entity, partialTicks);
-            float a = c.radarFade ? (float) Math.max(0.35, 1 - d / c.radarDistance * 0.65) : 1F;
+            // fainter the farther, never so faint it is lost
+            float a = (float) Math.max(0.35, 1 - d / c.radarDistance * 0.65);
             drawColor = Render.alpha(0xFF000000 | Option.rgb(String.valueOf(it.rule.color)), a);
             switch (it.rule.style) {
-                case Valuables.BEACON -> {
-                    WorldRender.blend(Blend.ADDITIVE, beamThroughWalls);
-                    WorldRender.throughWalls(glow);
-                }
+                case Valuables.BEACON -> WorldRender.blend(Blend.ADDITIVE, beamThroughWalls);
                 case Valuables.MARKER -> {
                     int meters = (int) Math.round(d);
                     if (meters != it.labelDistance || it.label == null) {
@@ -178,7 +176,7 @@ final class LootRadar {
     void overlay(float partialTicks) {
         CombatConfig c = mod.config;
         Object cam = Entities.camera();
-        if (!c.lootRadar || !c.radarArrows || cam == null || shownCount == 0) {
+        if (!c.lootRadar || !c.radarArrows || cam == null || shown.isEmpty()) {
             return;
         }
         float yaw = Entities.yaw(cam, partialTicks);
@@ -187,8 +185,8 @@ final class LootRadar {
         float sx = Render.guiWidth() / 2F;
         float sy = Render.guiHeight() / 2F;
         float radius = Math.min(sx, sy) * 0.55F;
-        for (int i = 0; i < shownCount; i++) {
-            GroundItems.Item it = shown[i];
+        for (int i = 0, n = shown.size(); i < n; i++) {
+            GroundItems.Item it = shown.get(i);
             double dx = Entities.x(it.entity, partialTicks) - cx;
             double dz = Entities.z(it.entity, partialTicks) - cz;
             float itemYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
@@ -216,42 +214,41 @@ final class LootRadar {
         }
     }
 
-    /** The items to draw: wanted, in range, the nearest ones up to the maximum. */
-    private void pick(CombatConfig c, float partialTicks) {
-        shownCount = 0;
+    /**
+     * The items to draw: wanted and in range, every one of them, in priority order — the lowest
+     * first, so the highest are drawn last, on top (the list's order is the priority).
+     */
+    private void pick(CombatConfig c) {
+        shown.clear();
         Object me = Entities.self();
-        int max = Math.min(c.radarMax, shown.length);
         List<GroundItems.Item> items = mod.groundItems.items();
-        for (int i = 0, n = items.size(); i < n; i++) {
-            GroundItems.Item it = items.get(i);
-            if (!wanted(c, it)) {
+        List<Valuables.Rule> rules = c.valuables;
+        for (int r = rules.size() - 1; r >= 0; r--) {
+            Valuables.Rule rule = rules.get(r);
+            if (rule.style == Valuables.OFF) {
                 continue;
             }
-            double d = Entities.distance(me, it.entity);
-            if (d > c.radarDistance) {
-                continue;
+            for (int i = 0, n = items.size(); i < n; i++) {
+                GroundItems.Item it = items.get(i);
+                if (it.rule != rule) {
+                    continue;
+                }
+                double d = Entities.distance(me, it.entity);
+                if (d > c.radarDistance) {
+                    continue;
+                }
+                if (shown.size() == shownDistance.length) {
+                    shownDistance =
+                            java.util.Arrays.copyOf(shownDistance, shownDistance.length * 2);
+                }
+                shownDistance[shown.size()] = d;
+                shown.add(it);
             }
-            // insertion into the sorted array, dropping the farthest when full
-            int at = shownCount;
-            while (at > 0 && shownDistance[at - 1] > d) {
-                at--;
-            }
-            if (at >= max) {
-                continue;
-            }
-            int last = Math.min(shownCount, max - 1);
-            for (int k = last; k > at; k--) {
-                shown[k] = shown[k - 1];
-                shownDistance[k] = shownDistance[k - 1];
-            }
-            shown[at] = it;
-            shownDistance[at] = d;
-            shownCount = Math.min(shownCount + 1, max);
         }
     }
 
-    private static boolean wanted(CombatConfig c, GroundItems.Item it) {
-        return it.rule != null && (!c.radarDeathOnly || it.fromDeath);
+    private static boolean wanted(GroundItems.Item it) {
+        return it.rule != null && it.rule.style != Valuables.OFF;
     }
 
     /**

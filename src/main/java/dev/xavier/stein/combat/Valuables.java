@@ -15,13 +15,16 @@ import dev.xavier.stein.loader.api.Stacks;
 import java.util.List;
 
 /**
- * Valuable Items: the one list of rules that says what is valuable — "a sword with Sharpness VI or
- * more", "armor with Protection V or more", "enchanted golden apple". Item Lock, Auto Stash, Loot
- * Radar and Loot Swap all read it, so the player says it once.
+ * Treasure List: the one list of rules that says what is valuable — "a sword with Sharpness VI or
+ * more", "armor with Protection V or more", "enchanted golden apple". Item Lock, Auto Stash, Auto
+ * Armor (and Auto Refill through its rules), and Loot Radar all read it, so the player says it
+ * once.
  *
- * <p>A rule is a kind of item, an enchantment (or none) and its minimum level; the Loot Radar's
- * style and color for what it matches live in the rule too. The first rule that matches an item is
- * the item's rule.
+ * <p>A rule is a kind of item, an enchantment (or none) and its minimum level: the enchantment at
+ * that level or higher. The list only says what is valuable; how Loot Radar shows each rule (its
+ * style, color, or not at all) lives in the rule too, but is set in Loot Radar's section. The
+ * list's order is the priority: the first rule that matches an item is the item's rule, and Loot
+ * Radar draws the higher ones on top.
  */
 final class Valuables {
 
@@ -84,11 +87,15 @@ final class Valuables {
     static final int BEACON = 1;
     static final int MARKER = 2;
 
+    /** Loot Radar does not mark what the rule matches (it is still valuable everywhere else). */
+    static final int OFF = 3;
+
     /** The lang key of each Loot Radar style. */
     static final String[] STYLE_KEYS = {
         "steincombat.radar.style.glow",
         "steincombat.radar.style.beacon",
-        "steincombat.radar.style.marker"
+        "steincombat.radar.style.marker",
+        "steincombat.radar.style.off"
     };
 
     private static final String[] ROMAN = {
@@ -201,9 +208,8 @@ final class Valuables {
     }
 
     /**
-     * How much the item is worth, to put things in order (what Auto Stash stores first, what Loot
-     * Swap drops first): valuable above all, then the enchantments, the material and what is left
-     * of the durability.
+     * How much the item is worth, to put things in order (what Auto Stash stores first): valuable
+     * above all, then the enchantments, the material and what is left of the durability.
      */
     static long value(CombatConfig c, Object s) {
         if (s == null) {

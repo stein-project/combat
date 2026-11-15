@@ -16,11 +16,8 @@ import dev.xavier.stein.loader.api.Screens;
 /**
  * Item Lock: the drop key never drops a locked item — Q (and Ctrl+Q) with it in the hand, and Q
  * with the mouse over it in the inventory or a chest. The only way to drop it is on purpose: pick
- * it up with the mouse and click outside the window. Locked is what the Valuable Items list says,
- * or every item with "All items" on. There is no key that lets it through: the mouse is the way.
- *
- * <p>Only the player's own drops are locked. Combat's modules that drop something (Loot Swap)
- * announce each drop first ({@link #allowThrow}), and they never drop a valuable anyway.
+ * it up with the mouse and click outside the window. Locked is what the Treasure List says, or
+ * every item with "All items" on. There is no key that lets it through: the mouse is the way.
  */
 final class ItemLock {
 
@@ -28,11 +25,6 @@ final class ItemLock {
     private static final int NOTICE_GAP = 40;
 
     private final SteinCombat mod;
-
-    /** Drops announced by Combat's own modules, still to come, and until when they wait. */
-    private int allowed;
-
-    private int allowedUntil;
 
     private int lastNotice = -NOTICE_GAP;
     private int ticks;
@@ -44,18 +36,9 @@ final class ItemLock {
         this.mod = mod;
     }
 
-    /** Every tick: the clock of the notices, and announced drops do not outlive a second. */
+    /** Every tick: the clock of the notices. */
     void tick() {
         ticks++;
-        if (allowed > 0 && ticks > allowedUntil) {
-            allowed = 0;
-        }
-    }
-
-    /** One of Combat's modules is about to drop an item with the drop click: let it through. */
-    void allowThrow() {
-        allowed++;
-        allowedUntil = ticks + 20;
     }
 
     /** Is the item locked? */
@@ -95,10 +78,6 @@ final class ItemLock {
             return false;
         }
         if (!locked(Inventory.slotStack(slot))) {
-            return false;
-        }
-        if (allowed > 0) {
-            allowed--;
             return false;
         }
         refused();

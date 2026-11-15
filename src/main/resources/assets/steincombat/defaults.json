@@ -31,7 +31,7 @@
   "effectEnemyRadius": 10,
   "effectOnDamage": false,
   "autoProtect": true,
-  "protectDefend": true,
+  "protectCloseScreens": true,
   "protectSurvive": true,
   "protectLowHealth": 10,
   "protectResumeHealth": 14,

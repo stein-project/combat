@@ -8,28 +8,34 @@
 
 package dev.xavier.stein.combat;
 
+import dev.xavier.stein.loader.api.Effects;
 import dev.xavier.stein.loader.api.Entities;
 import dev.xavier.stein.loader.api.Inventory;
 import dev.xavier.stein.loader.api.Screens;
 import dev.xavier.stein.loader.api.Stacks;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
- * What Supply Forecast measures and simulates: during a rush, how fast each supply goes — the wear
+ * What Supply Tracker measures and simulates: during a rush, how fast each supply goes — the wear
  * of each worn armor piece (hits taken), of the sword, the axe and the bow in the hand (hits dealt,
- * shots), the arrows shot, the enchanted golden apples eaten and the potions drunk or thrown — and
- * how much of each is left, from three sources the player turns on or off: what is equipped (worn
- * armor, the item in the hand), the inventory, and the server's chest as last seen by a chest trip
- * (Auto Refill or Auto Stash: the chest is only known when opened).
+ * shots), the arrows shot and the enchanted golden apples eaten — and how much of each is left (and
+ * of each kind of potion, by name), from three sources the player turns on or off: what is equipped
+ * (worn armor, the item in the hand), the inventory, and the server's virtual chest as last seen by
+ * a chest trip (Auto Refill or Auto Stash: the chest is only known when opened).
  *
- * <p>With auto start, a rush begins with damage taken, the player's first hit, or an enemy player
- * nearby; the key starts and ends one by hand.
+ * <p>A rush begins by itself with damage taken, the player's first hit, or an enemy player nearby;
+ * the key ends one (and starts one) by hand. Every tick it follows what is used, so the HUD's
+ * figures move as the supplies go.
  *
  * <p>The forecast is what is left divided by the pace measured so far: armor counts the durability
  * of the worn piece plus the spares of the same piece; the others, their durability or how many.
- * Early in the rush, with few measurements, it is a range that narrows as they come.
  *
- * <p>Items that leave by other ways do not count as used: nothing is counted while a chest trip,
- * Loot Swap or one of the player's screens is moving things.
+ * <p>Items that leave by other ways do not count as used: nothing is counted while a chest trip or
+ * one of the player's screens is moving things.
  */
 final class Supplies {
 
@@ -42,8 +48,7 @@ final class Supplies {
     static final int BOW = 6;
     static final int ARROWS = 7;
     static final int APPLES = 8;
-    static final int POTIONS = 9;
-    static final int COUNT = 10;
+    static final int COUNT = 9;
 
     /** The lang key of each supply. */
     static final String[] KEYS = {
@@ -55,8 +60,7 @@ final class Supplies {
         "steincombat.forecast.axe",
         "steincombat.forecast.bow",
         "steincombat.forecast.arrows",
-        "steincombat.forecast.apples",
-        "steincombat.forecast.potions"
+        "steincombat.forecast.apples"
     };
 
     /** The game's armor piece of each armor supply (helmet 3 ... boots 0). */
@@ -67,6 +71,54 @@ final class Supplies {
     /** A rush starts by itself with an enemy this close, or with damage taken. */
     private static final int START_RADIUS = 8;
 
+    /** An effect's time going up by more than this (ticks) is a new dose taken before it ended. */
+    private static final int RENEW_TICKS = 20;
+
+    /** How much each new measurement of a dose's use weighs in the average. */
+    private static final double DOSE_WEIGHT = 0.3;
+
+    /**
+     * One effect (and level) the player has had: the dose running now, and how much of a dose the
+     * player gets on average — eating or drinking again before it ends throws away what was left,
+     * so a player who renews early gets less out of each potion or apple.
+     */
+    private static final class Dose {
+        /** The dose running now: its time when taken, and its time left last tick. */
+        int applied;
+
+        int last;
+        boolean active;
+        long seen;
+
+        /** The part of a dose that is used, on average (1: each one runs to its end). */
+        double used = 1;
+
+        void measured(double part) {
+            used += (Math.max(0.05, Math.min(1, part)) - used) * DOSE_WEIGHT;
+        }
+    }
+
+    /** By effect and level ({@link #effectKey}), for as long as the game is open. */
+    private final Map<Integer, Dose> doses = new LinkedHashMap<>();
+
+    /** One kind of potion, by its name ("Potion of Swiftness", "Splash Potion of Healing"). */
+    static final class Potion {
+        final String name;
+
+        /** In the inventory now. */
+        int now;
+
+        /** One of them, to read its effects from ({@link dev.xavier.stein.loader.api.Effects}). */
+        Object stack;
+
+        /** In the chest as last seen. */
+        long chest;
+
+        Potion(String name) {
+            this.name = name;
+        }
+    }
+
     private final SteinCombat mod;
 
     private boolean running;
@@ -74,9 +126,6 @@ final class Supplies {
 
     /** Used during the rush (durability for armor and weapons; items for the rest). */
     private final long[] used = new long[COUNT];
-
-    /** How many times each one was seen going down (the confidence). */
-    private final int[] events = new int[COUNT];
 
     /** Last tick's armor, hand and counts. */
     private final Object[] lastArmor = new Object[4];
@@ -87,13 +136,17 @@ final class Supplies {
     private int lastHeldSlot = -1;
     private int lastArrows = -1;
     private int lastApples = -1;
-    private int lastPotions = -1;
     private float lastHealth = -1;
+
+    /** Each kind of potion seen, in the order they showed up. */
+    private final Map<String, Potion> potions = new LinkedHashMap<>();
+
+    private final List<Potion> potionList = new ArrayList<>();
 
     /** The player hit something since the last tick (a rush can start with the first hit). */
     private boolean attacked;
 
-    /** The chest as last seen: what is left of each supply, and when (-1: never seen). */
+    /** The chest as last seen: what is left of each supply (chestSeenAt -1: never seen). */
     private final long[] chest = new long[COUNT];
 
     private long chestSeenAt = -1;
@@ -107,17 +160,17 @@ final class Supplies {
         return running;
     }
 
+    /** The tick count: it moves every tick, and the HUD rebuilds its figures when it does. */
+    long clock() {
+        return clock;
+    }
+
     /** Minutes of rush measured. */
     double minutes() {
         return ticks / 1200.0;
     }
 
-    /** Seconds since the chest was last seen; -1 if it never was. */
-    long chestAge() {
-        return chestSeenAt < 0 ? -1 : (clock - chestSeenAt) / 20;
-    }
-
-    /** The player attacked an entity: with auto start, the rush begins. */
+    /** The player attacked an entity: the rush begins, if none is running. */
     void attacked() {
         attacked = true;
     }
@@ -135,9 +188,8 @@ final class Supplies {
         running = true;
         ticks = 0;
         java.util.Arrays.fill(used, 0);
-        java.util.Arrays.fill(events, 0);
         lastHeld = null;
-        lastArrows = lastApples = lastPotions = -1;
+        lastArrows = lastApples = -1;
         java.util.Arrays.fill(lastArmor, null);
     }
 
@@ -145,7 +197,6 @@ final class Supplies {
         running = false;
         ticks = 0;
         java.util.Arrays.fill(used, 0);
-        java.util.Arrays.fill(events, 0);
     }
 
     void tick() {
@@ -163,7 +214,7 @@ final class Supplies {
         }
         // health with absorption: with a golden apple's hearts, damage only takes those
         float health = Entities.health(me) + Entities.absorption(me);
-        if (!running && c.forecastAutoStart) {
+        if (!running) {
             boolean hurt = lastHealth >= 0 && health < lastHealth;
             if (hurt || attacked || SmartEffect.enemyNear(me, START_RADIUS)) {
                 start();
@@ -171,6 +222,7 @@ final class Supplies {
         }
         attacked = false;
         lastHealth = health;
+        doses(me);
         if (!running) {
             return;
         }
@@ -182,7 +234,6 @@ final class Supplies {
                 int delta = damage - lastArmorDamage[k];
                 if (delta > 0 && delta < 50) {
                     used[k] += delta;
-                    events[k]++;
                 }
             }
             lastArmor[k] = s;
@@ -200,16 +251,15 @@ final class Supplies {
             int delta = heldDamage - lastHeldDamage;
             if (delta > 0 && delta < 20) {
                 used[weapon] += delta;
-                events[weapon]++;
             }
         }
         lastHeld = held;
         lastHeldDamage = heldDamage;
         lastHeldSlot = slot;
-        boolean moving = Screens.isOpen() || mod.coordinator.chestTrip() || mod.lootSwap.busy();
+        boolean moving = Screens.isOpen() || mod.coordinator.chestTrip();
         lastArrows = count(ARROWS, lastArrows, moving);
         lastApples = count(APPLES, lastApples, moving);
-        lastPotions = count(POTIONS, lastPotions, moving);
+        countPotions();
     }
 
     /** Counts one kind of item, and what went since the last tick as used (not while moving). */
@@ -217,17 +267,53 @@ final class Supplies {
         int now = inventoryCount(supply);
         if (last >= 0 && now < last && !moving) {
             used[supply] += last - now;
-            events[supply]++;
         }
         return now;
+    }
+
+    /** How many of each kind of potion the inventory holds (only how many: no pace). */
+    private void countPotions() {
+        for (int i = 0, n = potionList.size(); i < n; i++) {
+            potionList.get(i).now = 0;
+        }
+        for (int i = 0; i < Inventory.ARMOR_START; i++) {
+            Object s = Inventory.stack(i);
+            if (s != null && Stacks.is(s, "potion")) {
+                Potion p = potion(Stacks.name(s));
+                p.now += Stacks.count(s);
+                p.stack = s;
+            }
+        }
+    }
+
+    private Potion potion(String name) {
+        Potion p = potions.get(name);
+        if (p == null) {
+            p = new Potion(name);
+            potions.put(name, p);
+            potionList.add(p);
+        }
+        return p;
     }
 
     /** A chest trip has the server's chest open with its contents: what it holds is noted. */
     void chestSeen() {
         java.util.Arrays.fill(chest, 0);
+        for (Potion p : potionList) {
+            p.chest = 0;
+        }
         int size = Inventory.containerSize();
         for (int slot = 0; slot < size; slot++) {
-            add(chest, Inventory.slotStack(slot));
+            Object s = Inventory.slotStack(slot);
+            if (s != null && Stacks.is(s, "potion")) {
+                Potion p = potion(Stacks.name(s));
+                p.chest += Stacks.count(s);
+                if (p.stack == null) {
+                    p.stack = s;
+                }
+            } else {
+                add(chest, s);
+            }
         }
         chestSeenAt = clock;
     }
@@ -261,27 +347,82 @@ final class Supplies {
         return sum;
     }
 
-    /** Used per minute so far; 0 with nothing measured. */
-    double rate(int supply) {
-        double m = minutes();
-        return m < 0.05 || used[supply] == 0 ? 0 : used[supply] / m;
-    }
-
     /** Minutes the supply lasts at the pace so far; -1 when nothing was used yet. */
     double forecast(int supply) {
-        double r = rate(supply);
-        if (r <= 0) {
-            return -1;
-        }
         if (supply == ARROWS && infiniteBow()) {
             return -1;
         }
-        return left(supply) / r;
+        return forecast(left(supply), used[supply]);
     }
 
-    /** The relative error of the forecast: wide early, narrower with each measurement. */
-    double spread(int supply) {
-        return Math.min(0.6, 1.2 / Math.sqrt(Math.max(1, events[supply])));
+    /**
+     * Follows each effect's doses: renewed before it ended, the part of the last one that was used
+     * is measured; run to its end, all of it was. A gap between doses changes nothing: the next one
+     * still gives all its time.
+     */
+    private void doses(Object me) {
+        for (Effects.Effect e : Effects.of(me)) {
+            if (e.permanent) {
+                continue;
+            }
+            int key = effectKey(e.id, e.amplifier);
+            Dose d = doses.get(key);
+            if (d == null) {
+                d = new Dose();
+                doses.put(key, d);
+            }
+            if (!d.active) {
+                d.active = true;
+                d.applied = e.duration;
+            } else if (e.duration > d.last + RENEW_TICKS) {
+                if (d.applied > 0) {
+                    d.measured((d.applied - d.last) / (double) d.applied);
+                }
+                d.applied = e.duration;
+            }
+            d.last = e.duration;
+            d.seen = clock;
+        }
+        for (Dose d : doses.values()) {
+            if (d.active && d.seen != clock) {
+                d.active = false;
+                d.measured(1); // it ran to its end
+            }
+        }
+    }
+
+    /**
+     * The part of a dose of the effect the player gets, on average: 1 until a renewal is seen, less
+     * for whoever eats or drinks again before the effect ends.
+     */
+    double doseUse(int key) {
+        Dose d = doses.get(key);
+        return d == null ? 1 : d.used;
+    }
+
+    /** One key per effect and level. */
+    static int effectKey(int id, int amplifier) {
+        return id << 8 | (amplifier & 0xFF);
+    }
+
+    /** The kinds of potion seen (read-only; in the order they showed up). */
+    List<Potion> potions() {
+        return potionList;
+    }
+
+    /** How many of the potion are left, by the sources turned on. */
+    long left(Potion p) {
+        CombatConfig c = mod.config;
+        long chestCount = c.forecastChest && chestSeenAt >= 0 ? p.chest : 0;
+        return (c.forecastInventory ? p.now : 0) + chestCount;
+    }
+
+    private double forecast(long left, long usedSoFar) {
+        double m = minutes();
+        if (m < 0.05 || usedSoFar == 0) {
+            return -1;
+        }
+        return left / (usedSoFar / m);
     }
 
     private static boolean infiniteBow() {
@@ -295,7 +436,7 @@ final class Supplies {
         return max > 0 ? max - Stacks.damage(s) : Stacks.count(s);
     }
 
-    /** Adds the item to the supply it belongs to. */
+    /** Adds the item to the supply it belongs to (potions are counted by kind, apart). */
     private static void add(long[] into, Object s) {
         if (s == null) {
             return;
@@ -316,8 +457,6 @@ final class Supplies {
             into[ARROWS] += Stacks.count(s);
         } else if (Valuables.isEnchantedApple(s)) {
             into[APPLES] += Stacks.count(s);
-        } else if (Stacks.is(s, "potion")) {
-            into[POTIONS] += Stacks.count(s);
         }
     }
 
@@ -329,11 +468,7 @@ final class Supplies {
                 continue;
             }
             boolean match =
-                    switch (supply) {
-                        case ARROWS -> Stacks.is(s, "arrow");
-                        case APPLES -> Valuables.isEnchantedApple(s);
-                        default -> Stacks.is(s, "potion");
-                    };
+                    supply == ARROWS ? Stacks.is(s, "arrow") : Valuables.isEnchantedApple(s);
             if (match) {
                 n += Stacks.count(s);
             }

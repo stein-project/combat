@@ -17,9 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The item modules' part of Combat's page: Valuable Items (the list of rules and a row to add one),
- * Item Lock, Auto Stash, Loot Radar, Loot Swap and Supply Forecast. Built with {@link CombatPage}'s
- * rows (the feature switch with its key and "Show in list", the switch that saves).
+ * The item modules' part of Combat's page: Treasure List (the list of rules and a row to add one),
+ * Item Lock, Auto Stash, Loot Radar (with how each rule of the list shows, and its priority) and
+ * Supply Tracker. Built with {@link CombatPage}'s rows (the feature switch with its key and "Show
+ * in list", the switch that saves).
  */
 final class CombatPageItems {
 
@@ -33,6 +34,9 @@ final class CombatPageItems {
     /** The rule being put together in the "new rule" rows. */
     private final Valuables.Rule draft = new Valuables.Rule(Valuables.SWORD, 2, 6, 0, 'c');
 
+    /** The rule whose look Loot Radar's rows edit (clicked in its list); null: the first one. */
+    private Valuables.Rule radarRule;
+
     CombatPageItems(SteinCombat mod, CombatPage page) {
         this.mod = mod;
         this.page = page;
@@ -45,11 +49,13 @@ final class CombatPageItems {
         itemLock(p);
         autoStash(p);
         lootRadar(p);
-        lootSwap(p);
         supplyForecast(p);
     }
 
-    /** Valuable Items: the rules, a click cycles the radar style, the trash can removes. */
+    /**
+     * Treasure List: only what is valuable (the kind, and the enchantment at a level or higher);
+     * the trash can removes. How Loot Radar shows each rule is in Loot Radar's section.
+     */
     private void valuables(Page p) {
         p.section(tr("steincombat.section.valuables"));
         // first, so the closed section's summary says how many rules there are
@@ -64,13 +70,10 @@ final class CombatPageItems {
                     for (Valuables.Rule r : c.valuables) {
                         rows.add(
                                 new Page.Item(
-                                        "§" + r.color + "■ §r" + r.describe(),
-                                        tr(Valuables.STYLE_KEYS[r.style]),
+                                        r.describe(),
+                                        "",
                                         false,
-                                        () -> {
-                                            r.style = (r.style + 1) % Valuables.STYLE_KEYS.length;
-                                            mod.save();
-                                        },
+                                        null,
                                         () -> {
                                             c.valuables.remove(r);
                                             mod.save();
@@ -102,27 +105,24 @@ final class CombatPageItems {
                                 v -> Valuables.roman((int) Math.round(v)) + "+")
                         .visibleWhen(() -> Valuables.ENCHANTS[draft.enchant] >= 0));
         p.option(
-                Option.cycle(
-                        INDENT + tr("steincombat.valuables.style"),
-                        names(Valuables.STYLE_KEYS),
-                        () -> draft.style,
-                        i -> draft.style = i));
-        p.option(
-                Option.color(
-                        INDENT + tr("steincombat.valuables.color"),
-                        () -> String.valueOf(draft.color),
-                        v -> draft.color = v.isEmpty() ? '6' : v.charAt(0)));
-        p.option(
                 Option.action(
                         INDENT + tr("steincombat.valuables.add"),
                         "+",
                         () -> {
-                            c.valuables.add(draft.copy());
+                            // a new rule shows on Loot Radar with the glow, in gold
+                            c.valuables.add(
+                                    new Valuables.Rule(
+                                            draft.kind,
+                                            draft.enchant,
+                                            draft.level,
+                                            Valuables.GLOW,
+                                            '6'));
                             mod.save();
                         }));
         p.restore(
                 () -> {
                     Valuables.defaults(c.valuables);
+                    radarRule = null;
                     mod.save();
                 });
     }
@@ -245,7 +245,11 @@ final class CombatPageItems {
                 });
     }
 
-    /** Loot Radar: distance, how many, fading, death drops only, arrows and sound. */
+    /**
+     * Loot Radar: distance, then the Treasure List's rules in priority order — a click picks one,
+     * and the rows below set how it shows (style or not marked, color) and move it up — and the
+     * arrows and the sound.
+     */
     private void lootRadar(Page p) {
         p.section(tr("steincombat.lootRadar"));
         p.option(
@@ -270,28 +274,65 @@ final class CombatPageItems {
                             mod.save();
                         },
                         v -> Math.round(v) + " m"));
+        p.rows(
+                () -> {
+                    List<Page.Item> rows = new ArrayList<>();
+                    Valuables.Rule picked = radarRule();
+                    int n = 1;
+                    for (Valuables.Rule r : c.valuables) {
+                        String look =
+                                r.style == Valuables.OFF
+                                        ? "§7" + r.describe()
+                                        : "§" + r.color + "■ §r" + r.describe();
+                        rows.add(
+                                new Page.Item(
+                                        n++ + ". " + look,
+                                        tr(Valuables.STYLE_KEYS[r.style]),
+                                        r == picked,
+                                        () -> radarRule = r,
+                                        null));
+                    }
+                    return rows;
+                },
+                tr("steincombat.valuables.empty"));
         p.option(
-                Option.slider(
-                        INDENT + tr("steincombat.radar.max"),
-                        1,
-                        CombatConfig.RADAR_MAX_LIMIT,
-                        1,
-                        () -> c.radarMax,
-                        v -> {
-                            c.radarMax = (int) Math.round(v);
-                            mod.save();
-                        },
-                        v -> String.valueOf(Math.round(v))));
+                Option.cycle(
+                                INDENT + tr("steincombat.radar.style"),
+                                names(Valuables.STYLE_KEYS),
+                                () -> radarRule() == null ? 0 : radarRule().style,
+                                i -> {
+                                    if (radarRule() != null) {
+                                        radarRule().style = i;
+                                        mod.save();
+                                    }
+                                })
+                        .visibleWhen(() -> radarRule() != null));
         p.option(
-                page.toggle(
-                        INDENT + tr("steincombat.radar.deathOnly"),
-                        () -> c.radarDeathOnly,
-                        v -> c.radarDeathOnly = v));
+                Option.color(
+                                INDENT + tr("steincombat.radar.color"),
+                                () -> radarRule() == null ? "6" : String.valueOf(radarRule().color),
+                                v -> {
+                                    if (radarRule() != null) {
+                                        radarRule().color = v.isEmpty() ? '6' : v.charAt(0);
+                                        mod.save();
+                                    }
+                                })
+                        .visibleWhen(
+                                () -> radarRule() != null && radarRule().style != Valuables.OFF));
         p.option(
-                page.toggle(
-                        INDENT + tr("steincombat.radar.fade"),
-                        () -> c.radarFade,
-                        v -> c.radarFade = v));
+                Option.action(
+                                INDENT + tr("steincombat.radar.up"),
+                                "↑",
+                                () -> {
+                                    Valuables.Rule r = radarRule();
+                                    int at = r == null ? -1 : c.valuables.indexOf(r);
+                                    if (at > 0) {
+                                        c.valuables.set(at, c.valuables.get(at - 1));
+                                        c.valuables.set(at - 1, r);
+                                        mod.save();
+                                    }
+                                })
+                        .visibleWhen(() -> c.valuables.indexOf(radarRule()) > 0));
         p.option(
                 page.toggle(
                         INDENT + tr("steincombat.radar.arrows"),
@@ -307,9 +348,6 @@ final class CombatPageItems {
                     CombatConfig d = new CombatConfig();
                     c.lootRadar = d.lootRadar;
                     c.radarDistance = d.radarDistance;
-                    c.radarMax = d.radarMax;
-                    c.radarDeathOnly = d.radarDeathOnly;
-                    c.radarFade = d.radarFade;
                     c.radarArrows = d.radarArrows;
                     c.radarSound = d.radarSound;
                     keys.lootRadar.setKey(Keys.KEY_NONE);
@@ -317,71 +355,15 @@ final class CombatPageItems {
                 });
     }
 
-    /** Loot Swap: how close, and what armor may be dropped. */
-    private void lootSwap(Page p) {
-        p.section(tr("steincombat.lootSwap"));
-        p.option(
-                page.feature(
-                        "steincombat.lootSwap",
-                        () -> c.lootSwap,
-                        v -> {
-                            c.lootSwap = v;
-                            mod.save();
-                        },
-                        keys.lootSwap,
-                        "lootSwap"));
-        p.option(
-                Option.slider(
-                        INDENT + tr("steincombat.swap.radius"),
-                        1,
-                        6,
-                        1,
-                        () -> c.swapRadius,
-                        v -> {
-                            c.swapRadius = (int) Math.round(v);
-                            mod.save();
-                        },
-                        v -> Math.round(v) + " m"));
-        p.option(
-                Option.slider(
-                        INDENT + tr("steincombat.swap.maxProtection"),
-                        0,
-                        10,
-                        1,
-                        () -> c.swapMaxProtection,
-                        v -> {
-                            c.swapMaxProtection = (int) Math.round(v);
-                            mod.save();
-                        },
-                        v ->
-                                Math.round(v) == 0
-                                        ? tr("steincombat.swap.unenchanted")
-                                        : Valuables.roman((int) Math.round(v))));
-        p.option(
-                Option.slider(
-                        INDENT + tr("steincombat.swap.maxDurability"),
-                        5,
-                        100,
-                        5,
-                        () -> c.swapMaxDurability,
-                        v -> {
-                            c.swapMaxDurability = (int) Math.round(v);
-                            mod.save();
-                        },
-                        v -> Math.round(v) + "%"));
-        p.restore(
-                () -> {
-                    CombatConfig d = new CombatConfig();
-                    c.lootSwap = d.lootSwap;
-                    c.swapRadius = d.swapRadius;
-                    c.swapMaxProtection = d.swapMaxProtection;
-                    c.swapMaxDurability = d.swapMaxDurability;
-                    keys.lootSwap.setKey(Keys.KEY_NONE);
-                    mod.save();
-                });
+    /** The rule Loot Radar's rows edit: the one clicked, while it is still on the list. */
+    private Valuables.Rule radarRule() {
+        if (radarRule == null || !c.valuables.contains(radarRule)) {
+            radarRule = c.valuables.isEmpty() ? null : c.valuables.get(0);
+        }
+        return radarRule;
     }
 
-    /** Supply Forecast: the sources, the start of the rush and its key. */
+    /** Supply Tracker: the sources, the armor (set or by piece) and the key for a rush by hand. */
     private void supplyForecast(Page p) {
         p.section(tr("steincombat.supplyForecast"));
         p.option(
@@ -393,11 +375,6 @@ final class CombatPageItems {
                                     mod.save();
                                 })
                         .withKey(keys.forecastRush::key, keys.forecastRush::setKey));
-        p.option(
-                page.toggle(
-                        INDENT + tr("steincombat.forecast.autoStart"),
-                        () -> c.forecastAutoStart,
-                        v -> c.forecastAutoStart = v));
         p.option(
                 page.toggle(
                         INDENT + tr("steincombat.forecast.worn"),
@@ -413,28 +390,15 @@ final class CombatPageItems {
                         INDENT + tr("steincombat.forecast.chest"),
                         () -> c.forecastChest,
                         v -> c.forecastChest = v));
-        p.option(
-                Option.cycle(
-                        INDENT + tr("steincombat.forecast.view"),
-                        new String[] {
-                            tr("steincombat.forecast.view.unified"),
-                            tr("steincombat.forecast.view.category"),
-                            tr("steincombat.forecast.view.item")
-                        },
-                        () -> c.forecastView,
-                        i -> {
-                            c.forecastView = i;
-                            mod.save();
-                        }));
+        p.option(SupplyForecast.armorOption(c, INDENT, mod::save));
         p.restore(
                 () -> {
                     CombatConfig d = new CombatConfig();
                     c.supplyForecast = d.supplyForecast;
-                    c.forecastAutoStart = d.forecastAutoStart;
                     c.forecastWorn = d.forecastWorn;
                     c.forecastInventory = d.forecastInventory;
                     c.forecastChest = d.forecastChest;
-                    c.forecastView = d.forecastView;
+                    c.forecastArmorSet = d.forecastArmorSet;
                     keys.forecastRush.setKey(Keys.KEY_NONE);
                     mod.save();
                 });

@@ -52,10 +52,11 @@ import java.util.List;
  * in progress stops — the player stepped away from the fight. Two cases are an emergency: the
  * enchanted golden apple missing in a fight (damage in the last seconds, an enemy within {@link
  * #EMERGENCY_RADIUS} blocks, or "Low health block" acting) and "Low health block" wanting the
- * sword. With "close the menu and the chat" on ({@link CombatConfig#effectCloseMenus}), that screen
- * closes, the apple or the block happens, and the Esc menu and the chat are closed again whenever
- * they open until the emergency is over (the apple eaten, health back). Potions and "Block in
- * menus" just wait.
+ * sword. For the apple with "close the menu and the chat" on ({@link
+ * CombatConfig#effectCloseMenus}), for the sword with Auto Protect's "close windows" on ({@link
+ * CombatConfig#protectCloseScreens}, which also closes the inventory or a chest), that screen
+ * closes, the apple or the block happens, and it is closed again whenever it opens until the
+ * emergency is over (the apple eaten, health back). Potions just wait.
  */
 final class SmartEffect {
 
@@ -144,9 +145,9 @@ final class SmartEffect {
      * At the end of every tick, after Auto Armor ({@code armorActed}: it touched the inventory in
      * this tick).
      *
-     * <p>The order: armor, Regeneration, blocking with the sword (Auto Protect: "Low health block"
-     * or a screen open), Speed and Strength. Armor defers the rest by one tick only: an Auto Armor
-     * that tries and fails to equip (and would try again every tick) must not hold the apple back.
+     * <p>The order: armor, Regeneration, blocking with the sword (Auto Protect's "Low health
+     * block"), Speed and Strength. Armor defers the rest by one tick only: an Auto Armor that tries
+     * and fails to equip (and would try again every tick) must not hold the apple back.
      */
     void tick(boolean armorActed) {
         CombatConfig c = mod.config;
@@ -163,6 +164,15 @@ final class SmartEffect {
         if (menuOpen() && !menuCleared(c, me)) {
             return;
         }
+        if (protect.survive()
+                && c.protectCloseScreens
+                && Screens.isOpen()
+                && !mod.coordinator.chestTrip()) {
+            // Auto Protect's emergency: the window where the sword cannot block (the inventory, a
+            // chest) closes so it can. Combat's own chest trips are left alone.
+            debug("emergency: closes " + Screens.currentKind() + " to block");
+            Screens.open(null);
+        }
         if (blocking && !Screens.isOpen() && Inventory.selectedHotbar() != blockSlot) {
             // The player switched slots in the middle of blocking (wheel or number key): they are
             // in
@@ -175,7 +185,10 @@ final class SmartEffect {
         if (effect == 0 && !blocking) {
             trackWeapon();
         }
-        boolean guard = protect.wantsBlock();
+        // Never blocking inside a window of the player's (the inventory, a chest): only in the
+        // world,
+        // after the emergency closed it, or while Combat's own hidden chest trip has one open.
+        boolean guard = protect.wantsBlock() && (!Screens.isOpen() || mod.coordinator.chestTrip());
         // "Low health block" acting: health first, then the potions (Speed and Strength wait for
         // health to come back).
         boolean wait = guard || protect.holdsBack();
@@ -250,7 +263,9 @@ final class SmartEffect {
      * sword goes down — and the tick ends here (false).
      */
     private boolean menuCleared(CombatConfig c, Object me) {
-        if (c.effectCloseMenus && (emergency || emergencyNow(c, me))) {
+        boolean apple = c.effectCloseMenus && (emergency || appleEmergency(c, me));
+        boolean guard = c.protectCloseScreens && protect.survive();
+        if (apple || guard) {
             emergency = true;
             debug("emergency: closes " + Screens.currentKind());
             Screens.open(null);
@@ -266,13 +281,10 @@ final class SmartEffect {
     }
 
     /**
-     * An emergency now: "Low health block" wants the sword, or the enchanted golden apple would be
-     * eaten (Smart Effect's conditions), there is one, and it is a fight.
+     * The apple's emergency now: the enchanted golden apple would be eaten (Smart Effect's
+     * conditions), there is one, and it is a fight.
      */
-    private boolean emergencyNow(CombatConfig c, Object me) {
-        if (protect.survive()) {
-            return true;
-        }
+    private boolean appleEmergency(CombatConfig c, Object me) {
         boolean apple =
                 c.smartEffect
                         && c.autoGapple

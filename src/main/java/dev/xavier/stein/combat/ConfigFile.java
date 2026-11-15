@@ -142,7 +142,7 @@ final class ConfigFile {
         c.effectOnDamage = bool(o, "effectOnDamage", c.effectOnDamage);
         c.effectCloseMenus = bool(o, "effectCloseMenus", c.effectCloseMenus);
         c.autoProtect = bool(o, "autoProtect", c.autoProtect);
-        c.protectDefend = bool(o, "protectDefend", c.protectDefend);
+        c.protectCloseScreens = bool(o, "protectCloseScreens", c.protectCloseScreens);
         // A file from before "Low health block": whoever already used Auto Protect keeps it as it
         // was (only blocking with a screen open); the new part is for turning on in the Panel.
         c.protectSurvive = bool(o, "protectSurvive", c.protectSurvive && !c.autoProtect);
@@ -155,10 +155,9 @@ final class ConfigFile {
         c.fixProtectHealth();
         c.clanHitThrough = bool(o, "clanHitThrough", c.clanHitThrough);
         c.autoclick = bool(o, "autoclick", c.autoclick);
-        c.autoclickSprintReset = bool(o, "autoclickSprintReset", c.autoclickSprintReset);
-        c.autoclickShortReset = bool(o, "autoclickShortReset", c.autoclickShortReset);
         if (o.has("autoclickTiming")) {
-            c.autoclickTiming = clamp(o.get("autoclickTiming").getAsInt(), 0, 2);
+            // 2 was Precise, gone: Tick Sync is the closest.
+            c.autoclickTiming = clamp(o.get("autoclickTiming").getAsInt(), 0, 1);
         }
         if (o.has("autoclickMode")) {
             c.autoclickMode = clamp(o.get("autoclickMode").getAsInt(), 0, 1);
@@ -263,7 +262,7 @@ final class ConfigFile {
         o.addProperty("effectOnDamage", c.effectOnDamage);
         o.addProperty("effectCloseMenus", c.effectCloseMenus);
         o.addProperty("autoProtect", c.autoProtect);
-        o.addProperty("protectDefend", c.protectDefend);
+        o.addProperty("protectCloseScreens", c.protectCloseScreens);
         o.addProperty("protectSurvive", c.protectSurvive);
         o.addProperty("protectLowHealth", c.protectLowHealth);
         o.addProperty("protectResumeHealth", c.protectResumeHealth);
@@ -271,8 +270,6 @@ final class ConfigFile {
         o.addProperty("autoclick", c.autoclick);
         o.addProperty("autoclickMode", c.autoclickMode);
         o.addProperty("autoclickTiming", c.autoclickTiming);
-        o.addProperty("autoclickSprintReset", c.autoclickSprintReset);
-        o.addProperty("autoclickShortReset", c.autoclickShortReset);
         o.addProperty("autoclickCps", c.autoclickCps);
         o.addProperty("autoRefill", c.autoRefill);
         o.addProperty("refillCommand", c.refillCommand);

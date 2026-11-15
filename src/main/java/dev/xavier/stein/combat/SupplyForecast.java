@@ -17,25 +17,40 @@ import dev.xavier.stein.loader.api.Option;
 import dev.xavier.stein.loader.api.Render;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Supply Forecast on the HUD grid: how long the rush lasts at the pace so far ({@link Supplies}),
- * in one of three views — unified (one line: how long until the first supply runs out, and which),
- * by category (armor, sword, axe, bow, apples, potions) or by item (each armor piece on its own).
- * The active regeneration's time shows next to the apples. The texts are rebuilt once a second.
+ * Supply Tracker on the HUD grid (the class keeps its first name, Supply Forecast): how long each
+ * supply lasts at the pace so far ({@link Supplies}), one line each — the armor (the whole set at
+ * once, or piece by piece), the sword, the axe, the bow and the arrows; then, for each effect the
+ * potions and the enchanted golden apples give, an estimate of how long it lasts drinking (or
+ * eating) them one after the other: what is left of the effect running now, plus their durations
+ * weighed by how much of a dose this player gets ({@link Supplies#doseUse}: renewing before the
+ * effect ends throws away what was left). A supply shows once it is being used (or, for what is
+ * counted, while there is some) and leaves the list when it runs out. The texts are rebuilt every
+ * tick, as the supplies are used: the figures follow the fight in real time.
  */
 final class SupplyForecast implements HudElement {
 
-    static final int UNIFIED = 0;
-    static final int CATEGORY = 1;
-    static final int ITEM = 2;
-
     private static final int LINE = 11;
+
+    /** An enchanted golden apple's Regeneration (1.8: level V for 30 seconds). */
+    private static final int REGENERATION = 10;
+
+    private static final int APPLE_LEVEL = 4;
+    private static final int APPLE_TICKS = 600;
+
+    /** Effect time on hand, in ticks, by effect and level ({@link Supplies#effectKey}). */
+    private final Map<Integer, long[]> cover = new LinkedHashMap<>();
 
     private final SteinCombat mod;
     private final List<String> lines = new ArrayList<>();
-    private int epoch = -1;
+
+    /** The tick the texts were built for ({@link Supplies#clock}). */
+    private long builtAt = -1;
+
     private int width;
 
     SupplyForecast(SteinCombat mod) {
@@ -59,9 +74,10 @@ final class SupplyForecast implements HudElement {
         if (!preview && (!c.supplyForecast || !s.running())) {
             return false;
         }
-        if (epoch != mod.textEpoch || lines.isEmpty()) {
-            epoch = mod.textEpoch;
-            build(c, s, preview && !s.running());
+        boolean sample = preview && !s.running();
+        if (builtAt != s.clock() || sample && lines.isEmpty()) {
+            builtAt = s.clock();
+            build(c, s, sample);
         }
         width = 0;
         for (String l : lines) {
@@ -76,124 +92,127 @@ final class SupplyForecast implements HudElement {
             lines.add(Lang.tr("steincombat.forecast.sample"));
             return;
         }
-        String regen = regenText();
-        if (c.forecastView == UNIFIED) {
-            int first = -1;
-            double min = Double.MAX_VALUE;
-            for (int k = 0; k < Supplies.COUNT; k++) {
-                double f = s.forecast(k);
-                if (f >= 0 && f < min) {
-                    min = f;
-                    first = k;
-                }
-            }
-            lines.add(
-                    first < 0
-                            ? Lang.tr("steincombat.forecast.measuring")
-                            : Lang.tr(
-                                    "steincombat.forecast.unified",
-                                    range(s, first, min),
-                                    Lang.tr(Supplies.KEYS[first]).toLowerCase()));
-            if (regen != null) {
-                lines.add(regen);
-            }
-            return;
-        }
-        if (c.forecastView == CATEGORY) {
-            int worst = -1;
-            double min = Double.MAX_VALUE;
-            for (int k = Supplies.HELMET; k <= Supplies.BOOTS; k++) {
-                double f = s.forecast(k);
-                if (f >= 0 && f < min) {
-                    min = f;
-                    worst = k;
-                }
-            }
-            if (worst >= 0) {
-                lines.add(
-                        "§b"
-                                + Lang.tr("steincombat.forecast.armor")
-                                + " §f"
-                                + range(s, worst, min)
-                                + " §7("
-                                + Lang.tr(Supplies.KEYS[worst]).toLowerCase()
-                                + ")");
-            }
+        if (c.forecastArmorSet) {
+            armorSet(s);
         } else {
             for (int k = Supplies.HELMET; k <= Supplies.BOOTS; k++) {
-                line(s, k, "§b");
+                worn(s, k, "§b");
             }
         }
-        line(s, Supplies.SWORD, "§c");
-        line(s, Supplies.AXE, "§c");
-        line(s, Supplies.BOW, "§e");
-        line(s, Supplies.ARROWS, "§e");
-        line(s, Supplies.APPLES, "§6");
-        line(s, Supplies.POTIONS, "§d");
-        if (regen != null) {
-            lines.add(regen);
+        worn(s, Supplies.SWORD, "§c");
+        worn(s, Supplies.AXE, "§c");
+        worn(s, Supplies.BOW, "§e");
+        counted(s, Supplies.ARROWS, "§e");
+        effects(s);
+        // Nothing worked out yet: no line at all, and the element stays hidden until there is.
+    }
+
+    /**
+     * The whole set at once: every piece's durability left over the set's pace — gone when no piece
+     * is left.
+     */
+    private void armorSet(Supplies s) {
+        long left = 0;
+        double pace = 0;
+        for (int k = Supplies.HELMET; k <= Supplies.BOOTS; k++) {
+            long l = s.left(k);
+            double f = s.forecast(k);
+            left += l;
+            if (l > 0 && f > 0) {
+                pace += l / f; // each piece's wear per minute adds up to the set's
+            }
         }
-        if (lines.isEmpty()) {
-            lines.add(Lang.tr("steincombat.forecast.measuring"));
+        if (left > 0 && pace > 0) {
+            line(Lang.tr("steincombat.forecast.armor"), "§b", time(left / pace));
         }
     }
 
-    /** One supply's line, only when it was used or there is some left of a counted kind. */
-    private void line(Supplies s, int k, String color) {
+    /** Something that wears (a piece, a weapon): shown while there is some and it is being used. */
+    private void worn(Supplies s, int k, String color) {
         double f = s.forecast(k);
-        long left = s.left(k);
-        boolean counted = k >= Supplies.ARROWS;
-        if (f < 0 && !(counted && left > 0)) {
+        if (s.left(k) > 0 && f >= 0) {
+            line(Lang.tr(Supplies.KEYS[k]), color, time(f));
+        }
+    }
+
+    private void counted(Supplies s, int k, String color) {
+        counted(Lang.tr(Supplies.KEYS[k]), color, s.left(k), s.forecast(k));
+    }
+
+    /** Something counted: how many, and how long they last once some were used. */
+    private void counted(String name, String color, long left, double f) {
+        if (left <= 0) {
             return;
         }
-        StringBuilder b = new StringBuilder(color).append(Lang.tr(Supplies.KEYS[k])).append(" §f");
-        if (counted) {
-            b.append(left);
-            if (f >= 0) {
-                b.append(" §7(").append(range(s, k, f)).append(')');
+        line(name, color, f >= 0 ? left + " §7· §f" + time(f) : String.valueOf(left));
+    }
+
+    /**
+     * How long each effect lasts with the potions and apples on hand, one after the other: what is
+     * left of the effect running now, plus their durations weighed by the part of a dose this
+     * player uses. Instant effects (Healing, Harming) have no time and do not show.
+     */
+    private void effects(Supplies s) {
+        for (long[] t : cover.values()) {
+            t[0] = 0;
+        }
+        for (Supplies.Potion p : s.potions()) {
+            long left = s.left(p);
+            if (left <= 0 || p.stack == null) {
+                continue;
             }
-        } else {
-            b.append(range(s, k, f));
+            for (Effects.Effect e : Effects.ofPotion(p.stack)) {
+                if (e.duration > 1) {
+                    add(s, Supplies.effectKey(e.id, e.amplifier), left * e.duration);
+                }
+            }
         }
-        lines.add(b.toString());
+        long apples = s.left(Supplies.APPLES);
+        if (apples > 0) {
+            add(s, Supplies.effectKey(REGENERATION, APPLE_LEVEL), apples * APPLE_TICKS);
+        }
+        Object me = Entities.self();
+        if (me != null) {
+            for (Effects.Effect e : Effects.of(me)) {
+                long[] t = cover.get(Supplies.effectKey(e.id, e.amplifier));
+                if (t != null && t[0] > 0 && !e.permanent) {
+                    t[0] += e.duration; // the one running now comes first
+                }
+            }
+        }
+        for (Map.Entry<Integer, long[]> en : cover.entrySet()) {
+            long ticks = en.getValue()[0];
+            if (ticks > 0) {
+                int k = en.getKey();
+                String name = Effects.name(new Effects.Effect(k >> 8, k & 0xFF, 0, false));
+                line(name, "§d", time(ticks / 1200.0));
+            }
+        }
     }
 
-    /** "~14 min" or, early in the rush, "10–18 min". */
-    private static String range(Supplies s, int k, double minutes) {
-        double e = s.spread(k);
-        if (e < 0.15) {
-            return "~" + time(minutes);
+    /** Doses on hand of the effect, weighed by the part of a dose this player uses. */
+    private void add(Supplies s, int key, long ticks) {
+        long[] t = cover.get(key);
+        if (t == null) {
+            t = new long[1];
+            cover.put(key, t);
         }
-        double low = minutes / (1 + e);
-        double high = minutes / (1 - e);
-        if (low >= 1 && high < 99) {
-            return Math.round(low) + "–" + Math.round(high) + " min"; // "7–12 min"
-        }
-        return time(low) + "–" + time(high);
+        t[0] += Math.round(ticks * s.doseUse(key));
     }
 
+    private void line(String name, String color, String value) {
+        lines.add(color + name + " §f" + value);
+    }
+
+    /** "~14 min", "~40 s", "99+ min". */
     private static String time(double minutes) {
         if (minutes >= 99) {
             return "99+ min";
         }
         if (minutes < 1) {
-            return Math.max(1, Math.round(minutes * 60)) + " s";
+            return "~" + Math.max(1, Math.round(minutes * 60)) + " s";
         }
-        return Math.round(minutes) + " min";
-    }
-
-    /** "Regeneration 0:21" while it is active. */
-    private static String regenText() {
-        Object me = Entities.self();
-        if (me == null) {
-            return null;
-        }
-        for (Effects.Effect e : Effects.of(me)) {
-            if (e.id == 10) {
-                return "§d" + Effects.name(e) + " §f" + Effects.durationText(e);
-            }
-        }
-        return null;
+        return "~" + Math.round(minutes) + " min";
     }
 
     @Override
@@ -228,25 +247,27 @@ final class SupplyForecast implements HudElement {
 
     @Override
     public void options(List<Option> out) {
-        CombatConfig c = mod.config;
-        out.add(
-                Option.cycle(
-                        Lang.tr("steincombat.forecast.view"),
-                        new String[] {
-                            Lang.tr("steincombat.forecast.view.unified"),
-                            Lang.tr("steincombat.forecast.view.category"),
-                            Lang.tr("steincombat.forecast.view.item")
-                        },
-                        () -> c.forecastView,
-                        i -> {
-                            c.forecastView = i;
-                            epoch = -1;
-                        }));
+        out.add(armorOption(mod.config, "", () -> builtAt = -1));
+    }
+
+    /** "Armor: whole set / piece by piece", here and in Combat's page. */
+    static Option armorOption(CombatConfig c, String indent, Runnable changed) {
+        return Option.cycle(
+                indent + Lang.tr("steincombat.forecast.armorMode"),
+                new String[] {
+                    Lang.tr("steincombat.forecast.armorMode.set"),
+                    Lang.tr("steincombat.forecast.armorMode.piece")
+                },
+                () -> c.forecastArmorSet ? 0 : 1,
+                i -> {
+                    c.forecastArmorSet = i == 0;
+                    changed.run();
+                });
     }
 
     @Override
     public void restoreOptions() {
-        mod.config.forecastView = new CombatConfig().forecastView;
+        mod.config.forecastArmorSet = new CombatConfig().forecastArmorSet;
     }
 
     @Override

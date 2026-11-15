@@ -92,7 +92,6 @@ final class Features {
                             "autoStash", "steincombat.autoStash", ITEMS, m -> m.config.autoStash),
                     new Feature(
                             "lootRadar", "steincombat.lootRadar", ITEMS, m -> m.config.lootRadar),
-                    new Feature("lootSwap", "steincombat.lootSwap", ITEMS, m -> m.config.lootSwap),
                     new Feature(
                             "supplyForecast",
                             "steincombat.supplyForecast",

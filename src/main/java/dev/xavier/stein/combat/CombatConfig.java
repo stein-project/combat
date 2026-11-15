@@ -155,15 +155,14 @@ final class CombatConfig {
     /** Put the worn armor from the bag into the chest. */
     boolean refillDeposit = false;
 
-    /**
-     * Auto Protect on: the sword blocking by itself, in the two cases it covers (each with its own
-     * switch). Files from before the two switches only had this one, which was blocking with a
-     * screen open: it stays here, and blocking ({@link #protectDefend}) starts on.
-     */
+    /** Auto Protect on: the sword blocking by itself with health low in a fight. */
     boolean autoProtect = false;
 
-    /** "Block in menus": with a screen open (inventory, chat, Panel), the sword blocking. */
-    boolean protectDefend = true;
+    /**
+     * In an Auto Protect emergency, the windows where the sword cannot block (the inventory, a
+     * chest, the Esc menu, the chat) close so it can, as Smart Effect does for the apple.
+     */
+    boolean protectCloseScreens = true;
 
     /**
      * "Low health block": with health at the limit in a fight, the sword blocking until health is
@@ -191,17 +190,11 @@ final class CombatConfig {
     /** 0: while the left button is held; 1: always (constant), without holding anything. */
     int autoclickMode = 0;
 
-    /** When the clicks go: Autoclick.NORMAL (the clock), TICK_SYNC or PRECISE. */
-    int autoclickTiming = Autoclick.NORMAL;
-
-    /** Precise: lets go of sprint for one tick on each click on a target (the sprint knockback). */
-    boolean autoclickSprintReset = true;
-
     /**
-     * Precise with a short server delay (a reset does not fit before every hit): resets every few
-     * hits anyway, trading some hits for knockback; off, only the damage.
+     * When the clicks go: Autoclick.NORMAL (the clock) or TICK_SYNC (both with the W-tap after each
+     * hit; files from when there was a third, Precise, get Tick Sync).
      */
-    boolean autoclickShortReset = true;
+    int autoclickTiming = Autoclick.NORMAL;
 
     /** Autoclick's clicks per second. */
     int autoclickCps = 20;
@@ -279,9 +272,9 @@ final class CombatConfig {
      */
     final Map<String, Feed> remoteFeeds = new LinkedHashMap<>();
 
-    // ---- Valuable Items and the item modules ----
+    // ---- Treasure List and the item modules ----
 
-    /** What is valuable: read by Item Lock, Auto Stash, Loot Radar and Loot Swap. */
+    /** What is valuable: read by Item Lock, Auto Stash, Auto Armor and Loot Radar. */
     final List<Valuables.Rule> valuables = Valuables.defaultList();
 
     /** Item Lock: the drop key never drops a locked item. */
@@ -313,43 +306,25 @@ final class CombatConfig {
     /** The valuable worn armor goes too (it comes off first). */
     boolean stashWorn = false;
 
-    /** Loot Radar: valuable items on the ground stand out. */
+    /** Loot Radar: valuable items on the ground stand out (each rule's style is in the rule). */
     boolean lootRadar = false;
 
-    static final int RADAR_MAX_LIMIT = 20;
-
     int radarDistance = 32;
-    int radarMax = 8;
-    boolean radarFade = true;
-
-    /** Only items that came from a player's death. */
-    boolean radarDeathOnly = false;
-
     boolean radarArrows = true;
     boolean radarSound = true;
 
-    /** Loot Swap: makes room in a full inventory for something better on the ground. */
-    boolean lootSwap = false;
-
-    /** How close the item on the ground must be, in blocks. */
-    int swapRadius = 2;
-
-    /** Armor that may be dropped: Protection at or below this... */
-    int swapMaxProtection = 4;
-
-    /** ...and durability below this percentage. */
-    int swapMaxDurability = 50;
-
-    /** Supply Forecast: how long the rush lasts, on the HUD grid. */
+    /**
+     * Supply Tracker (the "supplyForecast" key from when it had another name): how long the rush
+     * lasts, on the HUD grid. A rush starts by itself in a fight.
+     */
     boolean supplyForecast = false;
 
-    boolean forecastAutoStart = true;
     boolean forecastWorn = true;
     boolean forecastInventory = true;
     boolean forecastChest = true;
 
-    /** SupplyForecast.UNIFIED, CATEGORY or ITEM. */
-    int forecastView = SupplyForecast.CATEGORY;
+    /** Supply Tracker's armor: the whole set at once (one line), or piece by piece. */
+    boolean forecastArmorSet = true;
 
     /** The fields' values, with the package defaults ({@link ConfigFile#DEFAULTS}) on top. */
     CombatConfig() {

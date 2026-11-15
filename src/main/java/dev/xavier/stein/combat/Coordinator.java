@@ -11,12 +11,12 @@ package dev.xavier.stein.combat;
 /**
  * Who has the inventory, the hand and the chest: one owner at a time, in a fixed order of priority.
  * Surviving (Smart Effect eating and drinking, Auto Protect blocking) first, then Auto Armor, Auto
- * Stash, Auto Refill, Loot Swap and, last, the Autoclick.
+ * Stash, Auto Refill and, last, the Autoclick.
  *
  * <p>Nobody starts while someone ahead of it is acting ({@link #ahead}), and whoever is acting only
- * gives way at a safe point: every step of the chest trips and of Loot Swap ends with the cursor
- * empty and the chest in a known state, so the next owner finds the inventory whole. Supply
- * Forecast and Loot Radar only read and never take a turn.
+ * gives way at a safe point: every step of the chest trips ends with the cursor empty and the chest
+ * in a known state, so the next owner finds the inventory whole. Supply Tracker and Loot Radar only
+ * read and never take a turn.
  */
 final class Coordinator {
 
@@ -24,8 +24,7 @@ final class Coordinator {
     static final int ARMOR = 1;
     static final int STASH = 2;
     static final int REFILL = 3;
-    static final int SWAP = 4;
-    static final int CLICK = 5;
+    static final int CLICK = 4;
 
     private final SteinCombat mod;
 
@@ -40,7 +39,6 @@ final class Coordinator {
             case ARMOR -> mod.armorSettling();
             case STASH -> mod.autoStash.busy();
             case REFILL -> mod.autoRefill.busy();
-            case SWAP -> mod.lootSwap.busy();
             default -> false;
         };
     }

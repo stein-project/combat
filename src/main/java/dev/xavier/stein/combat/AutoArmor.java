@@ -34,6 +34,11 @@ import java.util.Arrays;
  *   <li><b>unenchanted</b>: whether an unenchanted spare is accepted (off by default).
  * </ul>
  *
+ * <p>A piece on the Treasure List (or with Protection at the rule's keep level) is not let break:
+ * at the threshold it comes off for a spare, and it is used again only with nothing else ({@link
+ * #isProtected}). Auto Refill, which follows these rules, treats it as worn from then on (it goes
+ * back to the chest when the worn pieces do).
+ *
  * <p>A piece's protection ({@link #score}) counts everything: the material's armor points,
  * Protection, the specific protections and Unbreaking. The remaining durability only counts if the
  * rule asks ({@link Rule#durability}), and only as a tie-breaker between pieces that protect the
@@ -418,21 +423,21 @@ final class AutoArmor {
         // Replacing in swap mode: first a spare above the threshold (otherwise the almost broken
         // one would be put on and swapped again right after); only with none, any that still has
         // durability.
-        int index = r.mode == SWAP ? best(piece, r.threshold + 1, r, false) : -1;
+        int index = r.mode == SWAP ? best(mod.config, piece, r.threshold + 1, r, false) : -1;
         if (index < 0) {
-            index = best(piece, 1, r, false);
+            index = best(mod.config, piece, 1, r, false);
         }
         if (index < 0) {
             // Nothing better: the protected pieces kept at the threshold are used again until they
             // break (with no other piece, using up what there is beats having no armor).
-            index = best(piece, 1, r, true);
+            index = best(mod.config, piece, 1, r, true);
         }
         act(piece, index, "steincombat.armor.equipped");
     }
 
     /** The worn piece is at the threshold: swap it, if the rule says so. */
     private void swapWorn(int piece, Rule r, Object worn) {
-        boolean keep = isProtected(worn, r);
+        boolean keep = isProtected(mod.config, worn, r);
         if (DEBUG) {
             log(
                     "piece "
@@ -447,7 +452,7 @@ final class AutoArmor {
         if (r.mode != SWAP && !keep) {
             return;
         }
-        int index = best(piece, r.threshold + 1, r, false);
+        int index = best(mod.config, piece, r.threshold + 1, r, false);
         if (index >= 0) {
             act(piece, index, "steincombat.armor.swapped");
         } else if (keep && !warned[piece]) {
@@ -493,9 +498,13 @@ final class AutoArmor {
         }
     }
 
-    /** Does the piece have Protection at the level the rule does not let break? */
-    static boolean isProtected(Object s, Rule r) {
-        return r.keepLevel > 0 && Stacks.enchantLevel(s, PROTECTION) >= r.keepLevel;
+    /**
+     * Is the piece one the rule does not let break: Protection at the rule's level, or on the
+     * Treasure List? It comes off at the threshold, and goes back on only with nothing else.
+     */
+    static boolean isProtected(CombatConfig c, Object s, Rule r) {
+        return r.keepLevel > 0 && Stacks.enchantLevel(s, PROTECTION) >= r.keepLevel
+                || Valuables.isValuable(c, s);
     }
 
     /**
@@ -563,7 +572,7 @@ final class AutoArmor {
      * @param allowKept also accept the protected piece that came off at the threshold (the last
      *     resort, with no other)
      */
-    private static int best(int piece, int minLeft, Rule r, boolean allowKept) {
+    private static int best(CombatConfig c, int piece, int minLeft, Rule r, boolean allowKept) {
         int best = -1;
         long bestScore = 0;
         int bestLeft = 0;
@@ -582,7 +591,7 @@ final class AutoArmor {
             if (max > 0 && left < minLeft) {
                 continue;
             }
-            if (!allowKept && max > 0 && left <= r.threshold && isProtected(s, r)) {
+            if (!allowKept && max > 0 && left <= r.threshold && isProtected(c, s, r)) {
                 continue; // the protected piece that came off so as not to break does not go back
                 // on
             }

@@ -87,7 +87,6 @@ public final class SteinCombat implements SteinMod {
     final ItemLock itemLock = new ItemLock(this);
     final GroundItems groundItems = new GroundItems(this);
     final LootRadar lootRadar = new LootRadar(this);
-    final LootSwap lootSwap = new LootSwap(this);
     final Supplies supplies = new Supplies(this);
     private final Diagnostics diagnostics = new Diagnostics(this);
     private final PresenceMarker marker = new PresenceMarker(this);
@@ -158,7 +157,6 @@ public final class SteinCombat implements SteinMod {
     @Override
     public void onJoinGame() {
         remote.joined();
-        autoclick.serverChanged();
         apply();
         if (config.remote) {
             remote.fetch(false);
@@ -193,12 +191,6 @@ public final class SteinCombat implements SteinMod {
         }
     }
 
-    /** A player died: the items that appear around come from a death (Loot Radar). */
-    @Override
-    public void onEntityDeath(Object entity) {
-        groundItems.entityDeath(entity);
-    }
-
     /** Loot Radar's arrows at the edge of the screen. */
     @Override
     public void onOverlay(float partialTicks) {
@@ -215,6 +207,20 @@ public final class SteinCombat implements SteinMod {
         return armorQuiet < 2 || autoArmor.checking();
     }
 
+    /**
+     * The server announced damage on an entity (status 2): for the Autoclick's W-tap, the attack
+     * landed. It comes with every hit, also hits on consecutive ticks and on players whose health
+     * the server hides — where neither the hurt animation nor the health shows it. The effect
+     * stays.
+     */
+    @Override
+    public boolean onEntityHurt(Object entity) {
+        if (entity != Entities.self()) {
+            autoclick.targetHurt(entity);
+        }
+        return false;
+    }
+
     /** The player's health went down: Auto Armor checks whether the worn armor wore. */
     @Override
     public void onHealthChanged(
@@ -227,7 +233,7 @@ public final class SteinCombat implements SteinMod {
             if (entity == Entities.self()) {
                 autoArmor.hurt();
             } else {
-                autoclick.healthDropped(entity);
+                autoclick.targetHurt(entity);
             }
         }
     }
@@ -325,9 +331,6 @@ public final class SteinCombat implements SteinMod {
         if (Server.allows("lootRadar")) {
             lootRadar.tick();
         }
-        if (Server.allows("lootSwap")) {
-            lootSwap.tick();
-        }
         if (Server.allows("supplyForecast")) {
             supplies.tick();
         }
@@ -347,9 +350,7 @@ public final class SteinCombat implements SteinMod {
         if (guard.onAttackEntity(target)) {
             return true;
         }
-        if (Server.allows("autoclick") && !autoclick.allowAttack(target)) {
-            return true; // Precise: inside the target's immunity, only the arm swings
-        }
+        autoclick.attacked(target); // the W-tap follows when it lands
         if (targetHud != null) {
             targetHud.hit(target);
         }

@@ -13,10 +13,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 /**
- * The item modules' part of config/steincombat.json (Valuable Items, Item Lock, Auto Stash, Loot
- * Radar, Loot Swap, Supply Forecast), read and written by {@link ConfigFile} in the same file. The
- * keys are the player's data: they never change. The Valuable Items rules store the enchantment by
- * the game's id, not by its place in the Panel's list, so the list can grow without breaking files.
+ * The item modules' part of config/steincombat.json (Treasure List, Item Lock, Auto Stash, Loot
+ * Radar, Supply Tracker), read and written by {@link ConfigFile} in the same file. The keys are the
+ * player's data: they never change. The Treasure List rules store the enchantment by the game's id,
+ * not by its place in the Panel's list, so the list can grow without breaking files.
  */
 final class ConfigFileItems {
 
@@ -46,21 +46,13 @@ final class ConfigFileItems {
         c.stashWorn = bool(o, "stashWorn", c.stashWorn);
         c.lootRadar = bool(o, "lootRadar", c.lootRadar);
         c.radarDistance = integer(o, "radarDistance", c.radarDistance, 8, 64);
-        c.radarMax = integer(o, "radarMax", c.radarMax, 1, CombatConfig.RADAR_MAX_LIMIT);
-        c.radarFade = bool(o, "radarFade", c.radarFade);
-        c.radarDeathOnly = bool(o, "radarDeathOnly", c.radarDeathOnly);
         c.radarArrows = bool(o, "radarArrows", c.radarArrows);
         c.radarSound = bool(o, "radarSound", c.radarSound);
-        c.lootSwap = bool(o, "lootSwap", c.lootSwap);
-        c.swapRadius = integer(o, "swapRadius", c.swapRadius, 1, 6);
-        c.swapMaxProtection = integer(o, "swapMaxProtection", c.swapMaxProtection, 0, 10);
-        c.swapMaxDurability = integer(o, "swapMaxDurability", c.swapMaxDurability, 5, 100);
         c.supplyForecast = bool(o, "supplyForecast", c.supplyForecast);
-        c.forecastAutoStart = bool(o, "forecastAutoStart", c.forecastAutoStart);
         c.forecastWorn = bool(o, "forecastWorn", c.forecastWorn);
         c.forecastInventory = bool(o, "forecastInventory", c.forecastInventory);
         c.forecastChest = bool(o, "forecastChest", c.forecastChest);
-        c.forecastView = integer(o, "forecastView", c.forecastView, 0, 2);
+        c.forecastArmorSet = bool(o, "forecastArmorSet", c.forecastArmorSet);
     }
 
     static void write(CombatConfig c, JsonObject o) {
@@ -82,21 +74,13 @@ final class ConfigFileItems {
         o.addProperty("stashWorn", c.stashWorn);
         o.addProperty("lootRadar", c.lootRadar);
         o.addProperty("radarDistance", c.radarDistance);
-        o.addProperty("radarMax", c.radarMax);
-        o.addProperty("radarFade", c.radarFade);
-        o.addProperty("radarDeathOnly", c.radarDeathOnly);
         o.addProperty("radarArrows", c.radarArrows);
         o.addProperty("radarSound", c.radarSound);
-        o.addProperty("lootSwap", c.lootSwap);
-        o.addProperty("swapRadius", c.swapRadius);
-        o.addProperty("swapMaxProtection", c.swapMaxProtection);
-        o.addProperty("swapMaxDurability", c.swapMaxDurability);
         o.addProperty("supplyForecast", c.supplyForecast);
-        o.addProperty("forecastAutoStart", c.forecastAutoStart);
         o.addProperty("forecastWorn", c.forecastWorn);
         o.addProperty("forecastInventory", c.forecastInventory);
         o.addProperty("forecastChest", c.forecastChest);
-        o.addProperty("forecastView", c.forecastView);
+        o.addProperty("forecastArmorSet", c.forecastArmorSet);
     }
 
     private static Valuables.Rule readRule(JsonObject o) {

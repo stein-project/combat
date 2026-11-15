@@ -41,9 +41,8 @@ final class CombatKeys {
     final Keys.Binding autoStash;
     final Keys.Binding itemLock;
     final Keys.Binding lootRadar;
-    final Keys.Binding lootSwap;
 
-    /** Supply Forecast: starts a rush, or ends the one running. */
+    /** Supply Tracker: starts a rush, or ends the one running. */
     final Keys.Binding forecastRush;
 
     /** Registers the bindings with the game; in afterStartGame. */
@@ -64,7 +63,6 @@ final class CombatKeys {
         autoStash = Keys.bind("key.steincombat.autoStash", Keys.KEY_NONE, CATEGORY);
         itemLock = Keys.bind("key.steincombat.itemLock", Keys.KEY_NONE, CATEGORY);
         lootRadar = Keys.bind("key.steincombat.lootRadar", Keys.KEY_NONE, CATEGORY);
-        lootSwap = Keys.bind("key.steincombat.lootSwap", Keys.KEY_NONE, CATEGORY);
         forecastRush = Keys.bind("key.steincombat.forecastRush", Keys.KEY_NONE, CATEGORY);
     }
 
@@ -135,10 +133,6 @@ final class CombatKeys {
         while (lootRadar.consumeClick()) {
             c.lootRadar = !c.lootRadar;
             toggled("steincombat.lootRadar", c.lootRadar);
-        }
-        while (lootSwap.consumeClick()) {
-            c.lootSwap = !c.lootSwap;
-            toggled("steincombat.lootSwap", c.lootSwap);
         }
         while (forecastRush.consumeClick()) {
             mod.supplies.toggle();

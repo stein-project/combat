@@ -118,38 +118,13 @@ final class CombatPage {
                         INDENT + tr("steincombat.autoclick.timing"),
                         new String[] {
                             tr("steincombat.autoclick.timing.normal"),
-                            tr("steincombat.autoclick.timing.tickSync"),
-                            tr("steincombat.autoclick.timing.precise")
+                            tr("steincombat.autoclick.timing.tickSync")
                         },
                         () -> c.autoclickTiming,
                         i -> {
                             c.autoclickTiming = i;
                             mod.save();
                         }));
-        page.option(
-                toggle(
-                                INDENT + INDENT + tr("steincombat.autoclick.sprintReset"),
-                                () -> c.autoclickSprintReset,
-                                v -> c.autoclickSprintReset = v)
-                        .visibleWhen(() -> c.autoclickTiming == Autoclick.PRECISE));
-        page.option(
-                toggle(
-                                INDENT + INDENT + tr("steincombat.autoclick.shortReset"),
-                                () -> c.autoclickShortReset,
-                                v -> c.autoclickShortReset = v)
-                        .visibleWhen(
-                                () ->
-                                        c.autoclickTiming == Autoclick.PRECISE
-                                                && c.autoclickSprintReset));
-        page.option(
-                new LiveLine(
-                                INDENT + INDENT + tr("steincombat.autoclick.delay"),
-                                () ->
-                                        Lang.tr(
-                                                "steincombat.autoclick.delayTicks",
-                                                mod.autoclick.immunity()),
-                                () -> {})
-                        .visibleWhen(() -> c.autoclickTiming == Autoclick.PRECISE));
         // Shown with the autoclick off too: everything can be set before it is turned on by its
         // key.
         page.option(
@@ -171,8 +146,6 @@ final class CombatPage {
                     c.autoclick = d.autoclick;
                     c.autoclickMode = d.autoclickMode;
                     c.autoclickTiming = d.autoclickTiming;
-                    c.autoclickSprintReset = d.autoclickSprintReset;
-                    c.autoclickShortReset = d.autoclickShortReset;
                     c.autoclickCps = d.autoclickCps;
                     mod.apply();
                     mod.save();
@@ -335,10 +308,9 @@ final class CombatPage {
         // clans.
         page.option(
                 toggle(
-                                tr("steincombat.enemyFromPrefix"),
-                                () -> c.enemyFromPrefix,
-                                v -> c.enemyFromPrefix = v)
-                        .advanced());
+                        tr("steincombat.enemyFromPrefix"),
+                        () -> c.enemyFromPrefix,
+                        v -> c.enemyFromPrefix = v));
         page.restore(
                 () -> {
                     CombatConfig d = new CombatConfig();
@@ -664,14 +636,15 @@ final class CombatPage {
                         "autoProtect"));
         page.option(
                 toggle(
-                        tr("steincombat.protect.defend"),
-                        () -> c.protectDefend,
-                        v -> c.protectDefend = v));
-        page.option(
-                toggle(
                         tr("steincombat.protect.survive"),
                         () -> c.protectSurvive,
                         v -> c.protectSurvive = v));
+        page.option(
+                toggle(
+                                INDENT + tr("steincombat.protect.closeScreens"),
+                                () -> c.protectCloseScreens,
+                                v -> c.protectCloseScreens = v)
+                        .visibleWhen(() -> c.protectSurvive));
         // In whole hearts (the file keeps health points: 2 per heart).
         Option low =
                 Option.slider(
@@ -708,7 +681,7 @@ final class CombatPage {
                 () -> {
                     CombatConfig d = new CombatConfig();
                     c.autoProtect = d.autoProtect;
-                    c.protectDefend = d.protectDefend;
+                    c.protectCloseScreens = d.protectCloseScreens;
                     c.protectSurvive = d.protectSurvive;
                     c.protectLowHealth = d.protectLowHealth;
                     c.protectResumeHealth = d.protectResumeHealth;

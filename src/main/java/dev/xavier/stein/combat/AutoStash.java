@@ -18,9 +18,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Auto Stash: puts the valuable items (the Valuable Items list) away in the server's virtual chest
- * ("/bau vip") — on its key, or by itself when health falls to the chosen limit, so what is worth
- * the most is not left on the ground if the fight is lost.
+ * Auto Stash: puts the valuable items (the Treasure List) away in the server's virtual chest ("/bau
+ * vip") — on its key, or by itself when health falls to the chosen limit, so what is worth the most
+ * is not left on the ground if the fight is lost.
  *
  * <p>The trip is Auto Refill's: the command, the chest hidden (or in view), one step every 100 ms
  * with the cursor empty at the end of each step, every step checking its own result and asking the
@@ -341,8 +341,8 @@ final class AutoStash {
 
     /**
      * The inventory indexes (hotbar and bag) of what goes to the chest, the most valuable first:
-     * what the Valuable Items list matches, minus what stays — the item in the hand, the apple
-     * reserve (whole stacks: the ones that cover it stay), and one spare per armor piece.
+     * what the Treasure List matches, minus what stays — the item in the hand, the apple reserve
+     * (whole stacks: the ones that cover it stay), and one spare per armor piece.
      */
     static List<Integer> toStash(CombatConfig c) {
         List<Integer> out = new ArrayList<>();

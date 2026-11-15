@@ -18,7 +18,6 @@
     "itemLock",
     "autoStash",
     "lootRadar",
-    "lootSwap",
     "supplyForecast"
   ],
   "source": "https://github.com/Stein-Project/combat/releases/latest/download/steinmods.json"
