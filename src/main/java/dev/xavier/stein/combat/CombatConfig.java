@@ -190,12 +190,6 @@ final class CombatConfig {
     /** 0: while the left button is held; 1: always (constant), without holding anything. */
     int autoclickMode = 0;
 
-    /**
-     * When the clicks go: Autoclick.NORMAL (the clock) or TICK_SYNC (both with the W-tap after each
-     * hit; files from when there was a third, Precise, get Tick Sync).
-     */
-    int autoclickTiming = Autoclick.NORMAL;
-
     /** Autoclick's clicks per second. */
     int autoclickCps = 20;
 
