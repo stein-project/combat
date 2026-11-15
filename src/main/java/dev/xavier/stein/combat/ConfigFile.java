@@ -155,10 +155,6 @@ final class ConfigFile {
         c.fixProtectHealth();
         c.clanHitThrough = bool(o, "clanHitThrough", c.clanHitThrough);
         c.autoclick = bool(o, "autoclick", c.autoclick);
-        if (o.has("autoclickTiming")) {
-            // 2 was Precise, gone: Tick Sync is the closest.
-            c.autoclickTiming = clamp(o.get("autoclickTiming").getAsInt(), 0, 1);
-        }
         if (o.has("autoclickMode")) {
             c.autoclickMode = clamp(o.get("autoclickMode").getAsInt(), 0, 1);
         }
@@ -269,7 +265,6 @@ final class ConfigFile {
         o.addProperty("clanHitThrough", c.clanHitThrough);
         o.addProperty("autoclick", c.autoclick);
         o.addProperty("autoclickMode", c.autoclickMode);
-        o.addProperty("autoclickTiming", c.autoclickTiming);
         o.addProperty("autoclickCps", c.autoclickCps);
         o.addProperty("autoRefill", c.autoRefill);
         o.addProperty("refillCommand", c.refillCommand);

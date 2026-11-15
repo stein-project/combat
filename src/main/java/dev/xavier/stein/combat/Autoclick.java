@@ -30,12 +30,10 @@ import dev.xavier.stein.loader.api.Screens;
  * Protect): while they handle the hand or the inventory, no click goes out (the hit would go with
  * the wrong item, in the middle of a swap).
  *
- * <p><b>Timing</b> ({@link CombatConfig#autoclickTiming}): <i>normal</i> takes each click's time
- * from the clock (nanoTime), checked every frame: the CPS is the chosen one at any FPS; a stall (a
- * stuck frame, a reload) does not become a burst, the rate starts over from where it is. <i>Tick
- * Sync</i> clicks at the end of each tick (the next one reads them first): the CPS spread over the
- * ticks, several in one tick above 20 CPS. Either way the game processes a tick's clicks one after
- * the other, and the server counts every swing.
+ * <p><b>Rate:</b> each click's time comes from the clock (nanoTime), checked every frame: the CPS
+ * is the chosen one at any FPS; a stall (a stuck frame, a reload) does not become a burst, the rate
+ * starts over from where it is. Above 20 CPS the game processes a tick's clicks one after the
+ * other, and the server counts every swing.
  *
  * <p><b>W-tap, always:</b> the server drops the attacker's sprinting on every hit that knocks back,
  * and only gives it back when the client stops and starts sprinting again — with no W-tap, only the
@@ -49,12 +47,6 @@ import dev.xavier.stein.loader.api.Screens;
  */
 final class Autoclick {
 
-    /** The clock below, checked every frame (the default). */
-    static final int NORMAL = 0;
-
-    /** At the end of each tick: the tick's share of the CPS. */
-    static final int TICK_SYNC = 1;
-
     /**
      * A delay longer than this (a stall) restarts the rate, instead of sending the late clicks at
      * once.
@@ -62,8 +54,8 @@ final class Autoclick {
     private static final long STALL_NS = 100_000_000L;
 
     /**
-     * At most this many clicks in one frame or tick (very low FPS with high CPS): the rest of the
-     * delay is forgiven.
+     * At most this many clicks in one frame (very low FPS with high CPS): the rest of the delay is
+     * forgiven.
      */
     private static final int MAX_PER_FRAME = 8;
 
@@ -80,9 +72,6 @@ final class Autoclick {
      * something is ahead).
      */
     private long next;
-
-    /** Tick Sync: clicks owed, in fractions (CPS / 20 per tick). */
-    private float credit;
 
     /** Ticks counted by {@link #tick}. */
     private long tick;
@@ -108,10 +97,10 @@ final class Autoclick {
                 && !mod.handBusy();
     }
 
-    /** Every frame, on the game thread: the normal timing. */
+    /** Every frame, on the game thread: the clicks at the chosen rate. */
     void frame() {
         CombatConfig c = mod.config;
-        if (c.autoclickTiming != NORMAL || !triggered(c)) {
+        if (!triggered(c)) {
             next = 0;
             return;
         }
@@ -137,26 +126,15 @@ final class Autoclick {
         }
     }
 
-    /** At the end of every tick: the W-tap, and Tick Sync's clicks. */
+    /** At the end of every tick: the W-tap after a hit that landed. */
     void tick() {
         tick++;
-        CombatConfig c = mod.config;
-        boolean on = triggered(c);
         if (wtapPending) {
             wtapPending = false;
-            if (on && tick - lastWtap >= WTAP_MIN_GAP) {
+            if (triggered(mod.config) && tick - lastWtap >= WTAP_MIN_GAP) {
                 lastWtap = tick;
                 mod.sprint.reset(); // a hit landed: stop now, sprint again next tick
             }
-        }
-        if (c.autoclickTiming != TICK_SYNC || !on) {
-            credit = 0;
-            return;
-        }
-        credit = Math.min(MAX_PER_FRAME, credit + c.autoclickCps / 20F);
-        while (credit >= 1F) {
-            credit -= 1F;
-            click();
         }
     }
 

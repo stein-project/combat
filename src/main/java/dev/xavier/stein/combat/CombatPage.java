@@ -113,18 +113,6 @@ final class CombatPage {
                             c.autoclickMode = i;
                             mod.save();
                         }));
-        page.option(
-                Option.cycle(
-                        INDENT + tr("steincombat.autoclick.timing"),
-                        new String[] {
-                            tr("steincombat.autoclick.timing.normal"),
-                            tr("steincombat.autoclick.timing.tickSync")
-                        },
-                        () -> c.autoclickTiming,
-                        i -> {
-                            c.autoclickTiming = i;
-                            mod.save();
-                        }));
         // Shown with the autoclick off too: everything can be set before it is turned on by its
         // key.
         page.option(
@@ -145,7 +133,6 @@ final class CombatPage {
                     c.noHitDelay = d.noHitDelay;
                     c.autoclick = d.autoclick;
                     c.autoclickMode = d.autoclickMode;
-                    c.autoclickTiming = d.autoclickTiming;
                     c.autoclickCps = d.autoclickCps;
                     mod.apply();
                     mod.save();
