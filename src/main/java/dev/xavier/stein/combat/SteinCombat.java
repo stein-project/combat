@@ -11,6 +11,7 @@ package dev.xavier.stein.combat;
 import dev.xavier.stein.loader.api.Entities;
 import dev.xavier.stein.loader.api.Gameplay;
 import dev.xavier.stein.loader.api.Hud;
+import dev.xavier.stein.loader.api.Inventory;
 import dev.xavier.stein.loader.api.Log;
 import dev.xavier.stein.loader.api.ModContext;
 import dev.xavier.stein.loader.api.Option;
@@ -76,9 +77,17 @@ public final class SteinCombat implements SteinMod {
     CombatKeys keys;
 
     private final AutoArmor autoArmor = new AutoArmor(this);
-    private final AutoRefill autoRefill = new AutoRefill(this);
-    private final SmartEffect smartEffect = new SmartEffect(this);
-    private final Autoclick autoclick = new Autoclick(this);
+    final AutoRefill autoRefill = new AutoRefill(this);
+    final SmartEffect smartEffect = new SmartEffect(this);
+    final Autoclick autoclick = new Autoclick(this);
+
+    // The item modules, and who decides whose turn it is with the inventory and the hand.
+    final Coordinator coordinator = new Coordinator(this);
+    final AutoStash autoStash = new AutoStash(this);
+    final ItemLock itemLock = new ItemLock(this);
+    final GroundItems groundItems = new GroundItems(this);
+    final LootRadar lootRadar = new LootRadar(this);
+    final Supplies supplies = new Supplies(this);
     private final Diagnostics diagnostics = new Diagnostics(this);
     private final PresenceMarker marker = new PresenceMarker(this);
 
@@ -112,6 +121,8 @@ public final class SteinCombat implements SteinMod {
         Hud.register(new NearestPlayer(this, false));
         Hud.register(new NearestPlayer(this, true));
         Hud.register(new ActiveFeatures(this));
+        Hud.register(new SupplyForecast(this));
+        Hud.register(new RefillProgress(this));
         targetFile = new File(configFile.getParentFile(), "steincombat-target.json");
         targetConfig = TargetConfigFile.load(targetFile, log());
         // Written at once: from here on this file is the one that counts.
@@ -160,6 +171,32 @@ public final class SteinCombat implements SteinMod {
     public void onWindowItems(int windowId) {
         autoArmor.windowItems(windowId);
         autoRefill.windowItems(windowId);
+        autoStash.windowItems(windowId);
+        if (windowId != 0 && coordinator.chestTrip() && Inventory.isContainerOpen()) {
+            supplies.chestSeen(); // the server's chest, as the trip sees it
+        }
+    }
+
+    /** Item Lock: the drop click on a locked item is cancelled. */
+    @Override
+    public boolean onWindowClick(int windowId, int slot, int button, int mode) {
+        return Server.allows("itemLock") && itemLock.onWindowClick(slot, mode);
+    }
+
+    /** Item Lock: the drop key's presses with a locked item in the hand are eaten. */
+    @Override
+    public void onKeyInput() {
+        if (Server.allows("itemLock")) {
+            itemLock.keyInput();
+        }
+    }
+
+    /** Loot Radar's arrows at the edge of the screen. */
+    @Override
+    public void onOverlay(float partialTicks) {
+        if (Server.allows("lootRadar")) {
+            lootRadar.overlay(partialTicks);
+        }
     }
 
     /**
@@ -170,9 +207,18 @@ public final class SteinCombat implements SteinMod {
         return armorQuiet < 2 || autoArmor.checking();
     }
 
-    /** Auto Refill has the chest open (or is waiting for it): the bag is its. */
-    boolean refillBusy() {
-        return autoRefill.busy();
+    /**
+     * The server announced damage on an entity (status 2): for the Autoclick's W-tap, the attack
+     * landed. It comes with every hit, also hits on consecutive ticks and on players whose health
+     * the server hides — where neither the hurt animation nor the health shows it. The effect
+     * stays.
+     */
+    @Override
+    public boolean onEntityHurt(Object entity) {
+        if (entity != Entities.self()) {
+            autoclick.targetHurt(entity);
+        }
+        return false;
     }
 
     /** The player's health went down: Auto Armor checks whether the worn armor wore. */
@@ -183,13 +229,18 @@ public final class SteinCombat implements SteinMod {
             float newHealth,
             float oldAbsorption,
             float newAbsorption) {
-        if (entity == Entities.self() && newHealth + newAbsorption < oldHealth + oldAbsorption) {
-            autoArmor.hurt();
+        if (newHealth + newAbsorption < oldHealth + oldAbsorption) {
+            if (entity == Entities.self()) {
+                autoArmor.hurt();
+            } else {
+                autoclick.targetHurt(entity);
+            }
         }
     }
 
     /** After changing the options: saves, rebuilds the lists and tells the Loader. */
     void save() {
+        groundItems.rulesChanged();
         if (targetFile != null) {
             TargetConfigFile.save(targetConfig, targetFile, log());
         }
@@ -235,6 +286,9 @@ public final class SteinCombat implements SteinMod {
             autoclick.frame();
         }
         marker.frame(partialTicks);
+        if (Server.allows("lootRadar")) {
+            lootRadar.frame(partialTicks);
+        }
     }
 
     /**
@@ -243,7 +297,7 @@ public final class SteinCombat implements SteinMod {
      * armor (Auto Armor, until one tick later). The Autoclick, last in line, waits.
      */
     boolean handBusy() {
-        return smartEffect.busy() || autoRefill.busy() || armorQuiet < 2;
+        return coordinator.ahead(Coordinator.CLICK);
     }
 
     @Override
@@ -269,9 +323,23 @@ public final class SteinCombat implements SteinMod {
         if (Server.allows("smartEffect")) {
             smartEffect.tick(armorActed);
         }
+        itemLock.tick();
+        if (Server.allows("autoStash")) {
+            autoStash.tick();
+        }
+        groundItems.tick();
+        if (Server.allows("lootRadar")) {
+            lootRadar.tick();
+        }
+        if (Server.allows("supplyForecast")) {
+            supplies.tick();
+        }
         autoWalk.tick(Server.allows("autoWalk"));
         marker.tick();
         sprint.tick(config.toggleSprint && Server.allows("toggleSprint"));
+        if (Server.allows("autoclick")) {
+            autoclick.tick();
+        }
         // Each tick: a server can take it away, and give it back, at any moment.
         Gameplay.setNoHitDelay(config.noHitDelay && Server.allows("noHitDelay"));
         diagnostics.afterTick();
@@ -282,9 +350,11 @@ public final class SteinCombat implements SteinMod {
         if (guard.onAttackEntity(target)) {
             return true;
         }
+        autoclick.attacked(target); // the W-tap follows when it lands
         if (targetHud != null) {
             targetHud.hit(target);
         }
+        supplies.attacked();
         return false;
     }
 

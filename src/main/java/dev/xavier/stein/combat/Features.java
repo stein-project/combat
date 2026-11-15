@@ -23,11 +23,12 @@ final class Features {
     static final int MOVEMENT = 1;
     static final int TEAM = 2;
     static final int AUTOMATION = 3;
+    static final int ITEMS = 4;
 
     /**
      * Each category's color in the list: combat red, movement blue, team green, automation violet.
      */
-    static final int[] COLORS = {0xFFFF5F5F, 0xFF5FB4FF, 0xFF5FE08A, 0xFFB98CFF};
+    static final int[] COLORS = {0xFFFF5F5F, 0xFF5FB4FF, 0xFF5FE08A, 0xFFB98CFF, 0xFFFFC14D};
 
     static final class Feature {
         /** The id stored in {@link CombatConfig#featuresHidden}. */
@@ -85,7 +86,17 @@ final class Features {
                             "autoProtect",
                             "steincombat.autoProtect",
                             AUTOMATION,
-                            m -> m.config.autoProtect));
+                            m -> m.config.autoProtect),
+                    new Feature("itemLock", "steincombat.itemLock", ITEMS, m -> m.config.itemLock),
+                    new Feature(
+                            "autoStash", "steincombat.autoStash", ITEMS, m -> m.config.autoStash),
+                    new Feature(
+                            "lootRadar", "steincombat.lootRadar", ITEMS, m -> m.config.lootRadar),
+                    new Feature(
+                            "supplyForecast",
+                            "steincombat.supplyForecast",
+                            ITEMS,
+                            m -> m.config.supplyForecast));
 
     private Features() {}
 

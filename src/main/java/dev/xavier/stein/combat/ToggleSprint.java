@@ -8,6 +8,7 @@
 
 package dev.xavier.stein.combat;
 
+import dev.xavier.stein.loader.api.Gameplay;
 import dev.xavier.stein.loader.api.Keys;
 import dev.xavier.stein.loader.api.Players;
 import dev.xavier.stein.loader.api.Screens;
@@ -21,6 +22,22 @@ final class ToggleSprint {
 
     /** The mod is holding the game's sprint key. */
     private boolean holding;
+
+    /**
+     * The sprint reset (the Autoclick's W-tap, at the end of the tick a hit landed): stops
+     * sprinting and lets go of the sprint key until the next {@link #tick}, so during the next tick
+     * nothing turns sprinting back on and the client tells the server it stopped; the tick after
+     * holds the key again and the client tells it it started. The server, which drops the
+     * attacker's sprinting on every hit that knocks back, sees it sprinting again for the next hit
+     * — the sprint knockback comes back, as with W-tapping by hand. Only with toggle sprint holding
+     * the key (a sprint key held by hand stays the player's).
+     */
+    void reset() {
+        if (holding) {
+            Gameplay.stopSprinting();
+            Keys.game(Keys.GameKey.SPRINT).hold(false);
+        }
+    }
 
     /**
      * Every tick: with toggle sprint on ({@link CombatConfig#toggleSprint}), the game's sprint key

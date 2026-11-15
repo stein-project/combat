@@ -51,8 +51,11 @@ final class ClanGuard {
     /** The self-test checks the decisions without sending a hit to whoever is behind. */
     boolean dryRun;
 
-    /** The empty name a ghost gets with "Hide ghost name tags" (built once the game is up). */
+    /** The empty name of a hidden ghost name: the Bridge then draws no label at all. */
     private Object noName;
+
+    /** The clan tags shown in place of ghosts' names, by nick: {tag, color code, component}. */
+    private final java.util.Map<String, Object[]> tagNames = new java.util.HashMap<>();
 
     ClanGuard(SteinCombat mod) {
         this.mod = mod;
@@ -189,16 +192,45 @@ final class ClanGuard {
     }
 
     /**
-     * The name above a ghost's head, with "Hide ghost name tags": an empty name (the Loader keeps
-     * the original for null), or null when the name stays.
+     * The name above a ghost's head, each group with its own choice ({@link
+     * CombatConfig#clanGhostName} for my clan, {@link CombatConfig#allyGhostName} for the allies):
+     * the name as it is (null: the Loader keeps it), only the clan's tag in the relation's color,
+     * or nothing — an empty name, which the Bridge draws no label for. Someone with no clan shows
+     * nothing with "only the clan tag".
      */
     Object ghostName(Object entity) {
-        if (!mod.config.ghostHideName || !onGhostEntity(entity)) {
+        if (!onGhostEntity(entity)) {
             return null;
+        }
+        String nick = Entities.name(entity);
+        int mode = mod.teams.isClanmate(nick) ? mod.config.clanGhostName : mod.config.allyGhostName;
+        if (mode == CombatConfig.NAME_SHOWN) {
+            return null;
+        }
+        if (mode == CombatConfig.NAME_CLAN_TAG) {
+            Object tag = clanTag(nick);
+            if (tag != null) {
+                return tag;
+            }
         }
         if (noName == null) {
             noName = Chat.text("");
         }
         return noName;
+    }
+
+    /** "[ABC]" in the color of the player's relation to me, kept until either changes. */
+    private Object clanTag(String nick) {
+        String tag = Clans.of(nick);
+        if (tag == null) {
+            return null;
+        }
+        char code = CombatApi.code(nick);
+        Object[] cached = tagNames.get(nick);
+        if (cached == null || !tag.equals(cached[0]) || (char) cached[1] != code) {
+            cached = new Object[] {tag, code, Chat.text("\u00a7" + code + "[" + tag + "]")};
+            tagNames.put(nick, cached);
+        }
+        return cached[2];
     }
 }

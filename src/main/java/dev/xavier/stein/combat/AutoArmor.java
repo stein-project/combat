@@ -34,6 +34,11 @@ import java.util.Arrays;
  *   <li><b>unenchanted</b>: whether an unenchanted spare is accepted (off by default).
  * </ul>
  *
+ * <p>A piece on the Treasure List (or with Protection at the rule's keep level) is not let break:
+ * at the threshold it comes off for a spare, and it is used again only with nothing else ({@link
+ * #isProtected}). Auto Refill, which follows these rules, treats it as worn from then on (it goes
+ * back to the chest when the worn pieces do).
+ *
  * <p>A piece's protection ({@link #score}) counts everything: the material's armor points,
  * Protection, the specific protections and Unbreaking. The remaining durability only counts if the
  * rule asks ({@link Rule#durability}), and only as a tie-breaker between pieces that protect the
@@ -250,7 +255,8 @@ final class AutoArmor {
      * the slot arrives.
      */
     void hurt() {
-        if (mod.config.autoArmor && hitCheckAt < 0 && wornWear() >= 0) {
+        CombatConfig c = mod.config;
+        if ((c.autoArmor || c.autoRefill) && hitCheckAt < 0 && wornWear() >= 0) {
             hitWear = wornWear();
             hitCheckAt = now + 10;
         }
@@ -308,6 +314,26 @@ final class AutoArmor {
         log("the requested inventory did not arrive");
     }
 
+    /**
+     * A hit a few ticks ago should have worn the worn armor: after a few still hits in a row (with
+     * a gap: falling, fire and poison do not wear armor), the real inventory is asked for. True if
+     * it asked.
+     */
+    private boolean stillHitCheck() {
+        if (hitCheckAt < 0 || now < hitCheckAt) {
+            return false;
+        }
+        hitCheckAt = -1;
+        long wear = wornWear();
+        stillHits = wear >= 0 && wear == hitWear ? stillHits + 1 : 0;
+        if (stillHits >= STILL_HITS && now - lastResync >= STILL_RESYNC_GAP) {
+            stillHits = 0;
+            resync("hits without the durability going down");
+            return true;
+        }
+        return false;
+    }
+
     /** One tick; returns true if it touched the inventory. */
     boolean tick() {
         acted = false;
@@ -316,8 +342,14 @@ final class AutoArmor {
         if (!c.autoArmor || Entities.self() == null) {
             awaitUntil = -1;
             outstanding = 0;
-            hitCheckAt = -1;
             Arrays.fill(pending, false);
+            // With only Auto Refill on, the still-hits check still runs: the refill trusts the
+            // bag, and armor the server does not have (ghost items) must not pass for real.
+            if (c.autoRefill && Entities.self() != null && !Inventory.isContainerOpen()) {
+                stillHitCheck();
+            } else {
+                hitCheckAt = -1;
+            }
             return false;
         }
         if (Inventory.isContainerOpen()) {
@@ -328,17 +360,8 @@ final class AutoArmor {
             answerTimedOut();
         }
         boolean waiting = awaitUntil >= 0;
-        if (!waiting && hitCheckAt >= 0 && now >= hitCheckAt) {
-            hitCheckAt = -1;
-            long wear = wornWear();
-            stillHits = wear >= 0 && wear == hitWear ? stillHits + 1 : 0;
-            // Falling, fire and poison do not wear armor: only a few still hits in a row, with a
-            // gap, ask.
-            if (stillHits >= STILL_HITS && now - lastResync >= STILL_RESYNC_GAP) {
-                stillHits = 0;
-                resync("hits without the durability going down");
-                return false;
-            }
+        if (!waiting && stillHitCheck()) {
+            return false;
         }
         if (Inventory.cursor() != null && !Inventory.isScreenOpen() && dropCursor()) {
             resync("item left on the cursor");
@@ -400,21 +423,21 @@ final class AutoArmor {
         // Replacing in swap mode: first a spare above the threshold (otherwise the almost broken
         // one would be put on and swapped again right after); only with none, any that still has
         // durability.
-        int index = r.mode == SWAP ? best(piece, r.threshold + 1, r, false) : -1;
+        int index = r.mode == SWAP ? best(mod.config, piece, r.threshold + 1, r, false) : -1;
         if (index < 0) {
-            index = best(piece, 1, r, false);
+            index = best(mod.config, piece, 1, r, false);
         }
         if (index < 0) {
             // Nothing better: the protected pieces kept at the threshold are used again until they
             // break (with no other piece, using up what there is beats having no armor).
-            index = best(piece, 1, r, true);
+            index = best(mod.config, piece, 1, r, true);
         }
         act(piece, index, "steincombat.armor.equipped");
     }
 
     /** The worn piece is at the threshold: swap it, if the rule says so. */
     private void swapWorn(int piece, Rule r, Object worn) {
-        boolean keep = isProtected(worn, r);
+        boolean keep = isProtected(mod.config, worn, r);
         if (DEBUG) {
             log(
                     "piece "
@@ -429,7 +452,7 @@ final class AutoArmor {
         if (r.mode != SWAP && !keep) {
             return;
         }
-        int index = best(piece, r.threshold + 1, r, false);
+        int index = best(mod.config, piece, r.threshold + 1, r, false);
         if (index >= 0) {
             act(piece, index, "steincombat.armor.swapped");
         } else if (keep && !warned[piece]) {
@@ -475,9 +498,13 @@ final class AutoArmor {
         }
     }
 
-    /** Does the piece have Protection at the level the rule does not let break? */
-    static boolean isProtected(Object s, Rule r) {
-        return r.keepLevel > 0 && Stacks.enchantLevel(s, PROTECTION) >= r.keepLevel;
+    /**
+     * Is the piece one the rule does not let break: Protection at the rule's level, or on the
+     * Treasure List? It comes off at the threshold, and goes back on only with nothing else.
+     */
+    static boolean isProtected(CombatConfig c, Object s, Rule r) {
+        return r.keepLevel > 0 && Stacks.enchantLevel(s, PROTECTION) >= r.keepLevel
+                || Valuables.isValuable(c, s);
     }
 
     /**
@@ -545,7 +572,7 @@ final class AutoArmor {
      * @param allowKept also accept the protected piece that came off at the threshold (the last
      *     resort, with no other)
      */
-    private static int best(int piece, int minLeft, Rule r, boolean allowKept) {
+    private static int best(CombatConfig c, int piece, int minLeft, Rule r, boolean allowKept) {
         int best = -1;
         long bestScore = 0;
         int bestLeft = 0;
@@ -564,7 +591,7 @@ final class AutoArmor {
             if (max > 0 && left < minLeft) {
                 continue;
             }
-            if (!allowKept && max > 0 && left <= r.threshold && isProtected(s, r)) {
+            if (!allowKept && max > 0 && left <= r.threshold && isProtected(c, s, r)) {
                 continue; // the protected piece that came off so as not to break does not go back
                 // on
             }

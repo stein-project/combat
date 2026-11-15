@@ -37,6 +37,14 @@ final class CombatKeys {
     final Keys.Binding autoRefill;
     final Keys.Binding autoclick;
 
+    // The item modules: Auto Stash's key makes a trip; the others turn the module on and off.
+    final Keys.Binding autoStash;
+    final Keys.Binding itemLock;
+    final Keys.Binding lootRadar;
+
+    /** Supply Tracker: starts a rush, or ends the one running. */
+    final Keys.Binding forecastRush;
+
     /** Registers the bindings with the game; in afterStartGame. */
     CombatKeys(SteinCombat mod) {
         this.mod = mod;
@@ -52,6 +60,10 @@ final class CombatKeys {
         autoProtect = Keys.bind("key.steincombat.autoProtect", Keys.KEY_NONE, CATEGORY);
         autoRefill = Keys.bind("key.steincombat.autoRefill", Keys.KEY_NONE, CATEGORY);
         autoclick = Keys.bind("key.steincombat.autoclick", Keys.KEY_NONE, CATEGORY);
+        autoStash = Keys.bind("key.steincombat.autoStash", Keys.KEY_NONE, CATEGORY);
+        itemLock = Keys.bind("key.steincombat.itemLock", Keys.KEY_NONE, CATEGORY);
+        lootRadar = Keys.bind("key.steincombat.lootRadar", Keys.KEY_NONE, CATEGORY);
+        forecastRush = Keys.bind("key.steincombat.forecastRush", Keys.KEY_NONE, CATEGORY);
     }
 
     /** Every tick: the presses since the last one, in order. */
@@ -110,6 +122,25 @@ final class CombatKeys {
         while (autoclick.consumeClick()) {
             c.autoclick = !c.autoclick;
             toggled("steincombat.autoclick", c.autoclick);
+        }
+        while (autoStash.consumeClick()) {
+            mod.autoStash.request();
+        }
+        while (itemLock.consumeClick()) {
+            c.itemLock = !c.itemLock;
+            toggled("steincombat.itemLock", c.itemLock);
+        }
+        while (lootRadar.consumeClick()) {
+            c.lootRadar = !c.lootRadar;
+            toggled("steincombat.lootRadar", c.lootRadar);
+        }
+        while (forecastRush.consumeClick()) {
+            mod.supplies.toggle();
+            Say.actionBar(
+                    Lang.tr(
+                            mod.supplies.running()
+                                    ? "steincombat.forecast.started"
+                                    : "steincombat.forecast.ended"));
         }
     }
 

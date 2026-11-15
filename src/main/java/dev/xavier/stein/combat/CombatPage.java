@@ -30,7 +30,7 @@ final class CombatPage {
     private static final String SHOW_IN_LIST = "steincombat.showInList";
 
     /** Sub-options are indented under their option. */
-    private static final String INDENT = "  ";
+    static final String INDENT = "  ";
 
     private final SteinCombat mod;
     private final CombatKeys keys;
@@ -56,6 +56,7 @@ final class CombatPage {
         autoRefill(page);
         smartEffect(page);
         autoProtect(page);
+        new CombatPageItems(mod, this).fill(page);
         colors(page);
         // The list from the internet comes before the lists: it decides whether the ones below
         // apply.
@@ -64,7 +65,7 @@ final class CombatPage {
     }
 
     /** A feature row: the switch, its key and "Show in list". */
-    private Option feature(
+    Option feature(
             String nameKey,
             BooleanSupplier get,
             java.util.function.Consumer<Boolean> set,
@@ -102,18 +103,30 @@ final class CombatPage {
                         "autoclick"));
         page.option(
                 Option.cycle(
-                                INDENT + tr("steincombat.autoclick.mode"),
-                                new String[] {
-                                    tr("steincombat.autoclick.mode.hold"),
-                                    tr("steincombat.autoclick.mode.always")
-                                },
-                                () -> c.autoclickMode,
-                                i -> {
-                                    c.autoclickMode = i;
-                                    mod.save();
-                                })
-                        .visibleWhen(() -> c.autoclick));
-        // Always shown: the rate can be set before the autoclick is turned on by its key.
+                        INDENT + tr("steincombat.autoclick.mode"),
+                        new String[] {
+                            tr("steincombat.autoclick.mode.hold"),
+                            tr("steincombat.autoclick.mode.always")
+                        },
+                        () -> c.autoclickMode,
+                        i -> {
+                            c.autoclickMode = i;
+                            mod.save();
+                        }));
+        page.option(
+                Option.cycle(
+                        INDENT + tr("steincombat.autoclick.timing"),
+                        new String[] {
+                            tr("steincombat.autoclick.timing.normal"),
+                            tr("steincombat.autoclick.timing.tickSync")
+                        },
+                        () -> c.autoclickTiming,
+                        i -> {
+                            c.autoclickTiming = i;
+                            mod.save();
+                        }));
+        // Shown with the autoclick off too: everything can be set before it is turned on by its
+        // key.
         page.option(
                 Option.slider(
                         INDENT + tr("steincombat.autoclick.cps"),
@@ -132,6 +145,7 @@ final class CombatPage {
                     c.noHitDelay = d.noHitDelay;
                     c.autoclick = d.autoclick;
                     c.autoclickMode = d.autoclickMode;
+                    c.autoclickTiming = d.autoclickTiming;
                     c.autoclickCps = d.autoclickCps;
                     mod.apply();
                     mod.save();
@@ -173,9 +187,19 @@ final class CombatPage {
                 });
     }
 
-    /** Team: my clan, the allies and the enemies by tag. */
+    /**
+     * My clan and the allies, each in its own section: what is done to my clan (protection, the
+     * hide key and how it hides them, their name as ghosts, the presence marker) and what is done
+     * to the allies (allied clans, ghosts with the hide key, their name as ghosts, enemies by tag).
+     */
     private void team(Page page) {
-        page.section(tr("steincombat.section.team"));
+        myClan(page);
+        allies(page);
+    }
+
+    /** My clan: Clan Protect, the hide key and everything about how my clan is hidden. */
+    private void myClan(Page page) {
+        page.section(tr("steincombat.section.myClan"));
         page.option(
                 feature(
                         "steincombat.protect",
@@ -217,18 +241,12 @@ final class CombatPage {
                             c.hideStyle = i;
                             mod.save();
                         }));
-        // The other allies are never hidden nor protected: at most ghosts that still take hits.
         page.option(
-                toggle(
-                        INDENT + tr("steincombat.ghostAllies"),
-                        () -> c.ghostAllies,
-                        v -> c.ghostAllies = v));
-        page.option(
-                toggle(
-                                INDENT + tr("steincombat.ghostHideName"),
-                                () -> c.ghostHideName,
-                                v -> c.ghostHideName = v)
-                        .visibleWhen(() -> c.hideStyle == ClanGuard.GHOST || c.ghostAllies));
+                ghostName(
+                                "steincombat.clanGhostName",
+                                () -> c.clanGhostName,
+                                i -> c.clanGhostName = i)
+                        .visibleWhen(() -> c.hideStyle == ClanGuard.GHOST));
         page.option(
                 toggle(
                                 INDENT + tr("steincombat.presenceMarker"),
@@ -254,32 +272,70 @@ final class CombatPage {
                                 () -> c.markerColored,
                                 v -> c.markerColored = v)
                         .visibleWhen(() -> c.hideStyle != ClanGuard.GHOST && c.presenceMarker));
-        page.option(
-                toggle(tr("steincombat.clanAllies"), () -> c.clanAllies, v -> c.clanAllies = v));
-        // Off by default: it is what made "[VIP]" and "[ADM]" enemies on a server that is not about
-        // clans.
-        page.option(
-                toggle(
-                                tr("steincombat.enemyFromPrefix"),
-                                () -> c.enemyFromPrefix,
-                                v -> c.enemyFromPrefix = v)
-                        .advanced());
         page.restore(
                 () -> {
                     CombatConfig d = new CombatConfig();
                     c.protectAllies = d.protectAllies;
                     c.clanHitThrough = d.clanHitThrough;
                     c.hideStyle = d.hideStyle;
-                    c.ghostAllies = d.ghostAllies;
-                    c.ghostHideName = d.ghostHideName;
+                    c.clanGhostName = d.clanGhostName;
                     c.presenceMarker = d.presenceMarker;
                     c.markerStyle = d.markerStyle;
                     c.markerColored = d.markerColored;
-                    c.clanAllies = d.clanAllies;
-                    c.enemyFromPrefix = d.enemyFromPrefix;
                     mod.save();
                     keys.clanProtect.setKey(Keys.KEY_NONE);
                     keys.hide.setKey(Keys.KEY_H);
+                });
+    }
+
+    /**
+     * The allies (marked nicks and allied clans): never hidden nor protected — with the hide key at
+     * most ghosts that still take every hit — and the enemies by tag.
+     */
+    private void allies(Page page) {
+        page.section(tr("steincombat.section.allies"));
+        page.option(
+                toggle(tr("steincombat.clanAllies"), () -> c.clanAllies, v -> c.clanAllies = v));
+        page.option(
+                toggle(tr("steincombat.ghostAllies"), () -> c.ghostAllies, v -> c.ghostAllies = v));
+        page.option(
+                ghostName(
+                                "steincombat.allyGhostName",
+                                () -> c.allyGhostName,
+                                i -> c.allyGhostName = i)
+                        .visibleWhen(() -> c.ghostAllies));
+        // Off by default: it is what made "[VIP]" and "[ADM]" enemies on a server that is not about
+        // clans.
+        page.option(
+                toggle(
+                        tr("steincombat.enemyFromPrefix"),
+                        () -> c.enemyFromPrefix,
+                        v -> c.enemyFromPrefix = v));
+        page.restore(
+                () -> {
+                    CombatConfig d = new CombatConfig();
+                    c.clanAllies = d.clanAllies;
+                    c.ghostAllies = d.ghostAllies;
+                    c.allyGhostName = d.allyGhostName;
+                    c.enemyFromPrefix = d.enemyFromPrefix;
+                    mod.save();
+                });
+    }
+
+    /** What a group's ghosts show above their heads: the name, only the clan tag, or nothing. */
+    private Option ghostName(
+            String key, java.util.function.IntSupplier get, java.util.function.IntConsumer set) {
+        return Option.cycle(
+                INDENT + tr(key),
+                new String[] {
+                    tr("steincombat.ghostName.shown"),
+                    tr("steincombat.ghostName.clanTag"),
+                    tr("steincombat.ghostName.hidden")
+                },
+                get,
+                i -> {
+                    set.accept(i);
+                    mod.save();
                 });
     }
 
@@ -541,6 +597,11 @@ final class CombatPage {
                         tr("steincombat.effect.onDamage"),
                         () -> c.effectOnDamage,
                         v -> c.effectOnDamage = v));
+        page.option(
+                toggle(
+                        tr("steincombat.effect.closeMenus"),
+                        () -> c.effectCloseMenus,
+                        v -> c.effectCloseMenus = v));
         page.restore(
                 () -> {
                     CombatConfig d = new CombatConfig();
@@ -551,6 +612,7 @@ final class CombatPage {
                     c.effectWaitEnemy = d.effectWaitEnemy;
                     c.effectEnemyRadius = d.effectEnemyRadius;
                     c.effectOnDamage = d.effectOnDamage;
+                    c.effectCloseMenus = d.effectCloseMenus;
                     mod.save();
                     keys.smartEffect.setKey(Keys.KEY_NONE);
                 });
@@ -574,14 +636,15 @@ final class CombatPage {
                         "autoProtect"));
         page.option(
                 toggle(
-                        tr("steincombat.protect.defend"),
-                        () -> c.protectDefend,
-                        v -> c.protectDefend = v));
-        page.option(
-                toggle(
                         tr("steincombat.protect.survive"),
                         () -> c.protectSurvive,
                         v -> c.protectSurvive = v));
+        page.option(
+                toggle(
+                                INDENT + tr("steincombat.protect.closeScreens"),
+                                () -> c.protectCloseScreens,
+                                v -> c.protectCloseScreens = v)
+                        .visibleWhen(() -> c.protectSurvive));
         // In whole hearts (the file keeps health points: 2 per heart).
         Option low =
                 Option.slider(
@@ -618,7 +681,7 @@ final class CombatPage {
                 () -> {
                     CombatConfig d = new CombatConfig();
                     c.autoProtect = d.autoProtect;
-                    c.protectDefend = d.protectDefend;
+                    c.protectCloseScreens = d.protectCloseScreens;
                     c.protectSurvive = d.protectSurvive;
                     c.protectLowHealth = d.protectLowHealth;
                     c.protectResumeHealth = d.protectResumeHealth;
@@ -811,8 +874,7 @@ final class CombatPage {
     }
 
     /** A plain switch that saves on change. */
-    private Option toggle(
-            String label, BooleanSupplier get, java.util.function.Consumer<Boolean> set) {
+    Option toggle(String label, BooleanSupplier get, java.util.function.Consumer<Boolean> set) {
         return Option.toggle(
                 label,
                 get,

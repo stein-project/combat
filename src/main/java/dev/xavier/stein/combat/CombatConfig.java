@@ -65,8 +65,23 @@ final class CombatConfig {
      */
     boolean ghostAllies = true;
 
-    /** No name above the ghosts' heads either (my clan's and the allies'). */
+    /**
+     * The old single switch for both groups: no name above the ghosts' heads. Kept in the file;
+     * files without the two choices below start them from it.
+     */
     boolean ghostHideName = false;
+
+    /** What a ghost shows above its head: its name, only its clan's tag, or nothing. */
+    static final int NAME_SHOWN = 0;
+
+    static final int NAME_CLAN_TAG = 1;
+    static final int NAME_HIDDEN = 2;
+
+    /** Above my clan's ghosts (the ghost hide style): NAME_SHOWN, NAME_CLAN_TAG or NAME_HIDDEN. */
+    int clanGhostName = NAME_SHOWN;
+
+    /** Above the allies' ghosts ("Ghost allies"): NAME_SHOWN, NAME_CLAN_TAG or NAME_HIDDEN. */
+    int allyGhostName = NAME_SHOWN;
 
     /**
      * Disappear and gone styles: a sign on the ground where each hidden ally is (footprints or a
@@ -115,6 +130,13 @@ final class CombatConfig {
     /** Also in the seconds after taking damage. With neither condition: always. */
     boolean effectOnDamage = false;
 
+    /**
+     * With the Esc menu or the chat open nothing is eaten, drunk or blocked; in an emergency (the
+     * enchanted golden apple in a fight, "Low health block") this closes that screen and keeps it
+     * from opening again until the emergency is over.
+     */
+    boolean effectCloseMenus = true;
+
     /** Auto Refill: fetch armor from the server's virtual chest. */
     boolean autoRefill = false;
 
@@ -133,15 +155,14 @@ final class CombatConfig {
     /** Put the worn armor from the bag into the chest. */
     boolean refillDeposit = false;
 
-    /**
-     * Auto Protect on: the sword blocking by itself, in the two cases it covers (each with its own
-     * switch). Files from before the two switches only had this one, which was blocking with a
-     * screen open: it stays here, and blocking ({@link #protectDefend}) starts on.
-     */
+    /** Auto Protect on: the sword blocking by itself with health low in a fight. */
     boolean autoProtect = false;
 
-    /** "Block in menus": with a screen open (inventory, chat, Panel), the sword blocking. */
-    boolean protectDefend = true;
+    /**
+     * In an Auto Protect emergency, the windows where the sword cannot block (the inventory, a
+     * chest, the Esc menu, the chat) close so it can, as Smart Effect does for the apple.
+     */
+    boolean protectCloseScreens = true;
 
     /**
      * "Low health block": with health at the limit in a fight, the sword blocking until health is
@@ -168,6 +189,12 @@ final class CombatConfig {
 
     /** 0: while the left button is held; 1: always (constant), without holding anything. */
     int autoclickMode = 0;
+
+    /**
+     * When the clicks go: Autoclick.NORMAL (the clock) or TICK_SYNC (both with the W-tap after each
+     * hit; files from when there was a third, Precise, get Tick Sync).
+     */
+    int autoclickTiming = Autoclick.NORMAL;
 
     /** Autoclick's clicks per second. */
     int autoclickCps = 20;
@@ -244,6 +271,60 @@ final class CombatConfig {
      * answers, and what keeps applying with no internet or with the file offline.
      */
     final Map<String, Feed> remoteFeeds = new LinkedHashMap<>();
+
+    // ---- Treasure List and the item modules ----
+
+    /** What is valuable: read by Item Lock, Auto Stash, Auto Armor and Loot Radar. */
+    final List<Valuables.Rule> valuables = Valuables.defaultList();
+
+    /** Item Lock: the drop key never drops a locked item. */
+    boolean itemLock = false;
+
+    /** Item Lock for every item, not only the valuable ones. */
+    boolean itemLockAll = false;
+
+    /** Auto Stash on (by itself, with health low); its key makes a trip either way. */
+    boolean autoStash = false;
+
+    /** Health (half hearts) at or below which the trip goes by itself. */
+    int stashHealth = 6;
+
+    String stashCommand = "/bau vip";
+    boolean stashShowWindow = false;
+
+    /** Valuables on the hotbar go too (the item in the hand stays with {@link #stashKeepHeld}). */
+    boolean stashHotbar = true;
+
+    boolean stashKeepHeld = true;
+
+    /** Enchanted golden apples that stay, at least. */
+    int stashKeepApples = 2;
+
+    /** One spare of each armor piece stays. */
+    boolean stashKeepSet = true;
+
+    /** The valuable worn armor goes too (it comes off first). */
+    boolean stashWorn = false;
+
+    /** Loot Radar: valuable items on the ground stand out (each rule's style is in the rule). */
+    boolean lootRadar = false;
+
+    int radarDistance = 32;
+    boolean radarArrows = true;
+    boolean radarSound = true;
+
+    /**
+     * Supply Tracker (the "supplyForecast" key from when it had another name): how long the rush
+     * lasts, on the HUD grid. A rush starts by itself in a fight.
+     */
+    boolean supplyForecast = false;
+
+    boolean forecastWorn = true;
+    boolean forecastInventory = true;
+    boolean forecastChest = true;
+
+    /** Supply Tracker's armor: the whole set at once (one line), or piece by piece. */
+    boolean forecastArmorSet = true;
 
     /** The fields' values, with the package defaults ({@link ConfigFile#DEFAULTS}) on top. */
     CombatConfig() {
