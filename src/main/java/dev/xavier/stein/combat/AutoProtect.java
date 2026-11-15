@@ -16,9 +16,10 @@ import dev.xavier.stein.loader.api.Screens;
  * Protect's switch:
  *
  * <ul>
- *   <li><b>Block in menus</b>: with a screen open (inventory, chat, Panel), the sword in hand and
- *       blocking — whoever handles the inventory in the middle of a fight does not stand there with
- *       the arm down;
+ *   <li><b>Block in menus</b>: with a screen open (inventory, a chest, the Panel), the sword in
+ *       hand and blocking — whoever handles the inventory in the middle of a fight does not stand
+ *       there with the arm down. Not with the chat, the Esc menu or a screen opened from it ({@link
+ *       SmartEffect#menuOpen}): there nothing is used;
  *   <li><b>Low health block</b>: with health at the limit ({@link CombatConfig#protectLowHealth})
  *       in a fight, the sword blocking until health is back ({@link
  *       CombatConfig#protectResumeHealth}). While blocking the hit does not go out — the game does
@@ -121,10 +122,10 @@ final class AutoProtect {
         }
     }
 
-    /** "Block in menus": the switch on and a screen open. */
+    /** "Block in menus": the switch on and a screen open, but not the Esc menus or the chat. */
     boolean defend() {
         CombatConfig c = mod.config;
-        return c.autoProtect && c.protectDefend && Screens.isOpen();
+        return c.autoProtect && c.protectDefend && Screens.isOpen() && !SmartEffect.menuOpen();
     }
 
     /**

@@ -350,7 +350,8 @@ final class Diagnostics {
         boolean savedProtect = config.protectAllies;
         int savedStyle = config.hideStyle;
         boolean savedGhostAllies = config.ghostAllies;
-        boolean savedHideName = config.ghostHideName;
+        int savedClanName = config.clanGhostName;
+        int savedAllyName = config.allyGhostName;
         boolean savedClanAllies = config.clanAllies;
         try {
             config.remote = false;
@@ -392,7 +393,8 @@ final class Diagnostics {
             config.protectAllies = savedProtect;
             config.hideStyle = savedStyle;
             config.ghostAllies = savedGhostAllies;
-            config.ghostHideName = savedHideName;
+            config.clanGhostName = savedClanName;
+            config.allyGhostName = savedAllyName;
             config.clanAllies = savedClanAllies;
             mod.save();
         }
@@ -416,9 +418,9 @@ final class Diagnostics {
             check(!guard.onHideEntity(e), nick + ": ally disappeared (style " + style + ")");
             check(!guard.onInteractEntity(e), nick + ": right click let through an ally");
             check(guard.onGhostEntity(e), nick + ": ally did not become a ghost");
-            config.ghostHideName = true;
+            config.allyGhostName = CombatConfig.NAME_HIDDEN;
             check(guard.ghostName(e) != null, nick + ": ally ghost name not hidden");
-            config.ghostHideName = false;
+            config.allyGhostName = CombatConfig.NAME_SHOWN;
             check(
                     guard.ghostName(e) == null,
                     nick + ": ally ghost name hidden with the option off");
@@ -449,10 +451,12 @@ final class Diagnostics {
         check(guard.onGhostEntity(e), nick + ": clanmate did not become a ghost");
         check(!guard.onHideEntity(e), nick + ": disappeared in the ghost style");
         check(guard.onAttackEntity(e), nick + ": hit did not go through the ghost");
-        config.ghostHideName = false;
+        config.clanGhostName = CombatConfig.NAME_SHOWN;
         check(guard.ghostName(e) == null, nick + ": ghost name hidden with the option off");
-        config.ghostHideName = true;
+        config.clanGhostName = CombatConfig.NAME_HIDDEN;
         check(guard.ghostName(e) != null, nick + ": ghost name not hidden");
+        config.clanGhostName = CombatConfig.NAME_CLAN_TAG;
+        check(guard.ghostName(e) != null, nick + ": ghost shows its name with the clan tag only");
         config.hideStyle = ClanGuard.GONE;
         check(guard.onHideEntity(e), nick + ": clanmate still on screen in the gone style");
         check(guard.onAttackEntity(e), nick + ": hit did not go through a gone clanmate");

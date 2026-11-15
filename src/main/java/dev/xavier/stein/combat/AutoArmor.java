@@ -250,7 +250,8 @@ final class AutoArmor {
      * the slot arrives.
      */
     void hurt() {
-        if (mod.config.autoArmor && hitCheckAt < 0 && wornWear() >= 0) {
+        CombatConfig c = mod.config;
+        if ((c.autoArmor || c.autoRefill) && hitCheckAt < 0 && wornWear() >= 0) {
             hitWear = wornWear();
             hitCheckAt = now + 10;
         }
@@ -308,6 +309,26 @@ final class AutoArmor {
         log("the requested inventory did not arrive");
     }
 
+    /**
+     * A hit a few ticks ago should have worn the worn armor: after a few still hits in a row (with
+     * a gap: falling, fire and poison do not wear armor), the real inventory is asked for. True if
+     * it asked.
+     */
+    private boolean stillHitCheck() {
+        if (hitCheckAt < 0 || now < hitCheckAt) {
+            return false;
+        }
+        hitCheckAt = -1;
+        long wear = wornWear();
+        stillHits = wear >= 0 && wear == hitWear ? stillHits + 1 : 0;
+        if (stillHits >= STILL_HITS && now - lastResync >= STILL_RESYNC_GAP) {
+            stillHits = 0;
+            resync("hits without the durability going down");
+            return true;
+        }
+        return false;
+    }
+
     /** One tick; returns true if it touched the inventory. */
     boolean tick() {
         acted = false;
@@ -316,8 +337,14 @@ final class AutoArmor {
         if (!c.autoArmor || Entities.self() == null) {
             awaitUntil = -1;
             outstanding = 0;
-            hitCheckAt = -1;
             Arrays.fill(pending, false);
+            // With only Auto Refill on, the still-hits check still runs: the refill trusts the
+            // bag, and armor the server does not have (ghost items) must not pass for real.
+            if (c.autoRefill && Entities.self() != null && !Inventory.isContainerOpen()) {
+                stillHitCheck();
+            } else {
+                hitCheckAt = -1;
+            }
             return false;
         }
         if (Inventory.isContainerOpen()) {
@@ -328,17 +355,8 @@ final class AutoArmor {
             answerTimedOut();
         }
         boolean waiting = awaitUntil >= 0;
-        if (!waiting && hitCheckAt >= 0 && now >= hitCheckAt) {
-            hitCheckAt = -1;
-            long wear = wornWear();
-            stillHits = wear >= 0 && wear == hitWear ? stillHits + 1 : 0;
-            // Falling, fire and poison do not wear armor: only a few still hits in a row, with a
-            // gap, ask.
-            if (stillHits >= STILL_HITS && now - lastResync >= STILL_RESYNC_GAP) {
-                stillHits = 0;
-                resync("hits without the durability going down");
-                return false;
-            }
+        if (!waiting && stillHitCheck()) {
+            return false;
         }
         if (Inventory.cursor() != null && !Inventory.isScreenOpen() && dropCursor()) {
             resync("item left on the cursor");

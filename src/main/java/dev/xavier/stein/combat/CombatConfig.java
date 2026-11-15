@@ -65,8 +65,23 @@ final class CombatConfig {
      */
     boolean ghostAllies = true;
 
-    /** No name above the ghosts' heads either (my clan's and the allies'). */
+    /**
+     * The old single switch for both groups: no name above the ghosts' heads. Kept in the file;
+     * files without the two choices below start them from it.
+     */
     boolean ghostHideName = false;
+
+    /** What a ghost shows above its head: its name, only its clan's tag, or nothing. */
+    static final int NAME_SHOWN = 0;
+
+    static final int NAME_CLAN_TAG = 1;
+    static final int NAME_HIDDEN = 2;
+
+    /** Above my clan's ghosts (the ghost hide style): NAME_SHOWN, NAME_CLAN_TAG or NAME_HIDDEN. */
+    int clanGhostName = NAME_SHOWN;
+
+    /** Above the allies' ghosts ("Ghost allies"): NAME_SHOWN, NAME_CLAN_TAG or NAME_HIDDEN. */
+    int allyGhostName = NAME_SHOWN;
 
     /**
      * Disappear and gone styles: a sign on the ground where each hidden ally is (footprints or a
@@ -114,6 +129,13 @@ final class CombatConfig {
 
     /** Also in the seconds after taking damage. With neither condition: always. */
     boolean effectOnDamage = false;
+
+    /**
+     * With the Esc menu or the chat open nothing is eaten, drunk or blocked; in an emergency (the
+     * enchanted golden apple in a fight, "Low health block") this closes that screen and keeps it
+     * from opening again until the emergency is over.
+     */
+    boolean effectCloseMenus = true;
 
     /** Auto Refill: fetch armor from the server's virtual chest. */
     boolean autoRefill = false;
@@ -168,6 +190,18 @@ final class CombatConfig {
 
     /** 0: while the left button is held; 1: always (constant), without holding anything. */
     int autoclickMode = 0;
+
+    /** When the clicks go: Autoclick.NORMAL (the clock), TICK_SYNC or PRECISE. */
+    int autoclickTiming = Autoclick.NORMAL;
+
+    /** Precise: lets go of sprint for one tick on each click on a target (the sprint knockback). */
+    boolean autoclickSprintReset = true;
+
+    /**
+     * Precise with a short server delay (a reset does not fit before every hit): resets every few
+     * hits anyway, trading some hits for knockback; off, only the damage.
+     */
+    boolean autoclickShortReset = true;
 
     /** Autoclick's clicks per second. */
     int autoclickCps = 20;
@@ -244,6 +278,78 @@ final class CombatConfig {
      * answers, and what keeps applying with no internet or with the file offline.
      */
     final Map<String, Feed> remoteFeeds = new LinkedHashMap<>();
+
+    // ---- Valuable Items and the item modules ----
+
+    /** What is valuable: read by Item Lock, Auto Stash, Loot Radar and Loot Swap. */
+    final List<Valuables.Rule> valuables = Valuables.defaultList();
+
+    /** Item Lock: the drop key never drops a locked item. */
+    boolean itemLock = false;
+
+    /** Item Lock for every item, not only the valuable ones. */
+    boolean itemLockAll = false;
+
+    /** Auto Stash on (by itself, with health low); its key makes a trip either way. */
+    boolean autoStash = false;
+
+    /** Health (half hearts) at or below which the trip goes by itself. */
+    int stashHealth = 6;
+
+    String stashCommand = "/bau vip";
+    boolean stashShowWindow = false;
+
+    /** Valuables on the hotbar go too (the item in the hand stays with {@link #stashKeepHeld}). */
+    boolean stashHotbar = true;
+
+    boolean stashKeepHeld = true;
+
+    /** Enchanted golden apples that stay, at least. */
+    int stashKeepApples = 2;
+
+    /** One spare of each armor piece stays. */
+    boolean stashKeepSet = true;
+
+    /** The valuable worn armor goes too (it comes off first). */
+    boolean stashWorn = false;
+
+    /** Loot Radar: valuable items on the ground stand out. */
+    boolean lootRadar = false;
+
+    static final int RADAR_MAX_LIMIT = 20;
+
+    int radarDistance = 32;
+    int radarMax = 8;
+    boolean radarFade = true;
+
+    /** Only items that came from a player's death. */
+    boolean radarDeathOnly = false;
+
+    boolean radarArrows = true;
+    boolean radarSound = true;
+
+    /** Loot Swap: makes room in a full inventory for something better on the ground. */
+    boolean lootSwap = false;
+
+    /** How close the item on the ground must be, in blocks. */
+    int swapRadius = 2;
+
+    /** Armor that may be dropped: Protection at or below this... */
+    int swapMaxProtection = 4;
+
+    /** ...and durability below this percentage. */
+    int swapMaxDurability = 50;
+
+    /** Supply Forecast: how long the rush lasts, on the HUD grid. */
+    boolean supplyForecast = false;
+
+    boolean forecastAutoStart = true;
+    boolean forecastWorn = true;
+    boolean forecastInventory = true;
+    boolean forecastChest = true;
+
+    /** SupplyForecast.UNIFIED, CATEGORY or ITEM. */
+    int forecastView = SupplyForecast.CATEGORY;
 
     /** The fields' values, with the package defaults ({@link ConfigFile#DEFAULTS}) on top. */
     CombatConfig() {

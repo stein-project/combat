@@ -96,6 +96,12 @@ final class ConfigFile {
         }
         c.ghostAllies = bool(o, "ghostAllies", c.ghostAllies);
         c.ghostHideName = bool(o, "ghostHideName", c.ghostHideName);
+        // the old single switch is where the two choices start, for files without them
+        int names = c.ghostHideName ? CombatConfig.NAME_HIDDEN : CombatConfig.NAME_SHOWN;
+        c.clanGhostName =
+                o.has("clanGhostName") ? clamp(o.get("clanGhostName").getAsInt(), 0, 2) : names;
+        c.allyGhostName =
+                o.has("allyGhostName") ? clamp(o.get("allyGhostName").getAsInt(), 0, 2) : names;
         c.presenceMarker = bool(o, "presenceMarker", c.presenceMarker);
         if (o.has("markerStyle")) {
             c.markerStyle = clamp(o.get("markerStyle").getAsInt(), 0, PresenceMarker.SQUARE);
@@ -134,6 +140,7 @@ final class ConfigFile {
         c.autoStrength = bool(o, "autoStrength", c.autoStrength);
         c.effectWaitEnemy = bool(o, "effectWaitEnemy", c.effectWaitEnemy);
         c.effectOnDamage = bool(o, "effectOnDamage", c.effectOnDamage);
+        c.effectCloseMenus = bool(o, "effectCloseMenus", c.effectCloseMenus);
         c.autoProtect = bool(o, "autoProtect", c.autoProtect);
         c.protectDefend = bool(o, "protectDefend", c.protectDefend);
         // A file from before "Low health block": whoever already used Auto Protect keeps it as it
@@ -148,6 +155,11 @@ final class ConfigFile {
         c.fixProtectHealth();
         c.clanHitThrough = bool(o, "clanHitThrough", c.clanHitThrough);
         c.autoclick = bool(o, "autoclick", c.autoclick);
+        c.autoclickSprintReset = bool(o, "autoclickSprintReset", c.autoclickSprintReset);
+        c.autoclickShortReset = bool(o, "autoclickShortReset", c.autoclickShortReset);
+        if (o.has("autoclickTiming")) {
+            c.autoclickTiming = clamp(o.get("autoclickTiming").getAsInt(), 0, 2);
+        }
         if (o.has("autoclickMode")) {
             c.autoclickMode = clamp(o.get("autoclickMode").getAsInt(), 0, 1);
         }
@@ -200,6 +212,7 @@ final class ConfigFile {
                 }
             }
         }
+        ConfigFileItems.read(c, o);
     }
 
     private static void readTags(JsonObject o, String key, List<String> out) {
@@ -220,6 +233,8 @@ final class ConfigFile {
         o.addProperty("hideStyle", c.hideStyle);
         o.addProperty("ghostAllies", c.ghostAllies);
         o.addProperty("ghostHideName", c.ghostHideName);
+        o.addProperty("clanGhostName", c.clanGhostName);
+        o.addProperty("allyGhostName", c.allyGhostName);
         o.addProperty("presenceMarker", c.presenceMarker);
         o.addProperty("markerStyle", c.markerStyle);
         o.addProperty("markerColored", c.markerColored);
@@ -246,6 +261,7 @@ final class ConfigFile {
         o.addProperty("effectWaitEnemy", c.effectWaitEnemy);
         o.addProperty("effectEnemyRadius", c.effectEnemyRadius);
         o.addProperty("effectOnDamage", c.effectOnDamage);
+        o.addProperty("effectCloseMenus", c.effectCloseMenus);
         o.addProperty("autoProtect", c.autoProtect);
         o.addProperty("protectDefend", c.protectDefend);
         o.addProperty("protectSurvive", c.protectSurvive);
@@ -254,6 +270,9 @@ final class ConfigFile {
         o.addProperty("clanHitThrough", c.clanHitThrough);
         o.addProperty("autoclick", c.autoclick);
         o.addProperty("autoclickMode", c.autoclickMode);
+        o.addProperty("autoclickTiming", c.autoclickTiming);
+        o.addProperty("autoclickSprintReset", c.autoclickSprintReset);
+        o.addProperty("autoclickShortReset", c.autoclickShortReset);
         o.addProperty("autoclickCps", c.autoclickCps);
         o.addProperty("autoRefill", c.autoRefill);
         o.addProperty("refillCommand", c.refillCommand);
@@ -272,6 +291,7 @@ final class ConfigFile {
         o.add("enemies", strings(c.enemies));
         o.add("enemyClans", strings(c.enemyClans));
         o.add("remote", writeRemote(c));
+        ConfigFileItems.write(c, o);
         File dir = file.getParentFile();
         if (dir != null) {
             dir.mkdirs();

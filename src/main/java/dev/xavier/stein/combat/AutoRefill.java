@@ -153,9 +153,68 @@ final class AutoRefill {
         this.mod = mod;
     }
 
+    /** Ticks counted by {@link #tick}, and the tick the current trip started. */
+    private long now;
+
+    private long tripStart;
+
+    /**
+     * The armor pieces (worn and in the bag) when the last trip closed, for the server's answer.
+     */
+    private int expectSpares = -1;
+
+    /** The bag check after a trip was asked: its answer is compared with {@link #expectSpares}. */
+    private boolean verifying;
+
     /** Is the refill chest open (or about to open)? */
     boolean busy() {
         return state != State.IDLE;
+    }
+
+    /** Waiting for the chest to open after the command. */
+    boolean opening() {
+        return state == State.WAITING;
+    }
+
+    /** Ticks since the current trip started (the command was sent). */
+    int tripTicks() {
+        return state == State.IDLE ? 0 : (int) (now - tripStart);
+    }
+
+    /**
+     * About how many ticks the current trip still needs: a step per piece still missing, and the
+     * check before closing; -1 while the chest has not opened.
+     */
+    int remainingTicks() {
+        if (state != State.WORKING) {
+            return -1;
+        }
+        CombatConfig c = mod.config;
+        int missing = 0;
+        for (int piece = 0; piece < 4; piece++) {
+            AutoArmor.Rule r = c.armorRule(piece);
+            if (r.mode != AutoArmor.OFF) {
+                missing += Math.max(0, Math.max(1, c.refillTarget) - AutoArmor.spares(piece, r));
+            }
+        }
+        return missing * STEP_TICKS * 2 + (dirty ? RESYNC_TIMEOUT / 4 : 0) + STEP_TICKS;
+    }
+
+    /**
+     * Auto Stash takes the open chest over (health low): this trip ends here, without closing the
+     * chest, and gives its window. -1 while the chest is not open yet or an item is on the cursor
+     * (not a safe point: Auto Stash waits for the next tick).
+     */
+    int handOver() {
+        if (state != State.WORKING || Inventory.cursor() != null) {
+            return -1;
+        }
+        log("chest handed over to Auto Stash");
+        state = State.IDLE;
+        cooldown = 100;
+        verifyIn = 0;
+        done(mod.config);
+        return windowId;
     }
 
     /**
@@ -167,9 +226,22 @@ final class AutoRefill {
             awaiting = 0;
             log("real contents arrived");
         }
+        if (id == 0 && verifying && state == State.IDLE) {
+            verifying = false;
+            int pieces = armorPieces();
+            if (expectSpares >= 0 && pieces < expectSpares) {
+                // The client was showing pieces the server never gave (ghost items): the server's
+                // bag replaced them, so the next trip may go at once. All the armor is counted,
+                // worn and in the bag, so Auto Armor putting a spare on in between is no ghost.
+                log("ghost items: " + (expectSpares - pieces) + " pieces were not real");
+                cooldown = 0;
+                failStreak = 0;
+            }
+        }
     }
 
     void tick() {
+        now++;
         CombatConfig c = mod.config;
         if (Entities.self() == null) {
             state = State.IDLE;
@@ -193,6 +265,7 @@ final class AutoRefill {
                 verifyIn = 1; // the player opened another window: check when it closes
             } else {
                 Inventory.resync();
+                verifying = true;
                 log("bag checked with the server");
             }
         }
@@ -223,6 +296,7 @@ final class AutoRefill {
         if (!Inventory.isContainerOpen()
                 && !Inventory.isScreenOpen()
                 && !mod.armorSettling()
+                && !mod.autoStash.busy()
                 && needs(c)
                 && roomToBring(c)) {
             if (!c.refillShowWindow) {
@@ -233,6 +307,7 @@ final class AutoRefill {
             Chat.send(c.refillCommand.trim());
             log("command sent: " + c.refillCommand.trim());
             state = State.WAITING;
+            tripStart = now;
             timer = OPEN_TIMEOUT;
         }
     }
@@ -484,7 +559,9 @@ final class AutoRefill {
                             + ArmorSlots.freeSlot());
         }
         log("closes: " + moved + " brought, " + (done ? "finished" : "timed out or refused"));
+        mod.supplies.chestSeen();
         Inventory.closeContainer();
+        expectSpares = armorPieces();
         state = State.IDLE;
         verifyIn = VERIFY_TICKS;
         if (moved > 0) {
@@ -575,6 +652,18 @@ final class AutoRefill {
         }
         int free = ArmorSlots.freeSlot();
         return free < 0 ? -1 : Inventory.slotOf(free);
+    }
+
+    /** Every armor piece the player has: worn, on the hotbar and in the bag. */
+    private static int armorPieces() {
+        int n = 0;
+        for (int i = 0; i < Inventory.SIZE; i++) {
+            Object s = Inventory.stack(i);
+            if (s != null && Inventory.armorPiece(s) >= 0) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private void log(String text) {
