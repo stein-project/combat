@@ -85,6 +85,7 @@ public final class SteinCombat implements SteinMod {
     final Coordinator coordinator = new Coordinator(this);
     final AutoStash autoStash = new AutoStash(this);
     final ItemLock itemLock = new ItemLock(this);
+    final AutoTrash autoTrash = new AutoTrash(this);
     final GroundItems groundItems = new GroundItems(this);
     final LootRadar lootRadar = new LootRadar(this);
     final Supplies supplies = new Supplies(this);
@@ -326,6 +327,9 @@ public final class SteinCombat implements SteinMod {
         itemLock.tick();
         if (Server.allows("autoStash")) {
             autoStash.tick();
+        }
+        if (Server.allows("autoTrash")) {
+            autoTrash.tick();
         }
         groundItems.tick();
         if (Server.allows("lootRadar")) {

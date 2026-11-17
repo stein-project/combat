@@ -74,7 +74,7 @@ final class ItemLock {
      * pickup click) is not touched: that is the way to drop on purpose.
      */
     boolean onWindowClick(int slot, int mode) {
-        if (!mod.config.itemLock || mode != Inventory.THROW || slot < 0) {
+        if (!mod.config.itemLock || mode != Inventory.THROW || slot < 0 || mod.autoTrash.dropping) {
             return false;
         }
         if (!locked(Inventory.slotStack(slot))) {

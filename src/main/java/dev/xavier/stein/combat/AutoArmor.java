@@ -499,6 +499,55 @@ final class AutoArmor {
     }
 
     /**
+     * Would Auto Armor act now (or is it about to): a piece's slot empty with a spare in the
+     * inventory, or a worn piece at the threshold that its rule swaps and a spare to swap it for.
+     * Auto Refill asks before opening the chest and while it is open: the chest window has no armor
+     * slots, so a trip then would hold Auto Armor back.
+     */
+    /**
+     * A piece's slot is empty and the inventory has something to put there: the player is without
+     * it now, and only Auto Armor fixes that.
+     */
+    static boolean urgent(CombatConfig c) {
+        if (!c.autoArmor) {
+            return false;
+        }
+        for (int piece = Inventory.HELMET; piece >= Inventory.BOOTS; piece--) {
+            Rule r = c.armorRule(piece);
+            if (r.mode != OFF
+                    && Inventory.armor(piece) == null
+                    && best(c, piece, 1, r, true) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean wouldAct(CombatConfig c) {
+        if (!c.autoArmor) {
+            return false;
+        }
+        for (int piece = Inventory.HELMET; piece >= Inventory.BOOTS; piece--) {
+            Rule r = c.armorRule(piece);
+            if (r.mode == OFF) {
+                continue;
+            }
+            Object worn = Inventory.armor(piece);
+            if (worn == null) {
+                if (best(c, piece, 1, r, true) >= 0) {
+                    return true;
+                }
+            } else if (Stacks.isDamageable(worn)
+                    && Stacks.maxDamage(worn) - Stacks.damage(worn) <= r.threshold
+                    && (r.mode == SWAP || isProtected(c, worn, r))
+                    && best(c, piece, r.threshold + 1, r, false) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Is the piece one the rule does not let break: Protection at the rule's level, or on the
      * Treasure List? It comes off at the threshold, and goes back on only with nothing else.
      */

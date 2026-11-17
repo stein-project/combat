@@ -130,13 +130,6 @@ final class CombatConfig {
     /** Also in the seconds after taking damage. With neither condition: always. */
     boolean effectOnDamage = false;
 
-    /**
-     * With the Esc menu or the chat open nothing is eaten, drunk or blocked; in an emergency (the
-     * enchanted golden apple in a fight, "Low health block") this closes that screen and keeps it
-     * from opening again until the emergency is over.
-     */
-    boolean effectCloseMenus = true;
-
     /** Auto Refill: fetch armor from the server's virtual chest. */
     boolean autoRefill = false;
 
@@ -155,14 +148,22 @@ final class CombatConfig {
     /** Put the worn armor from the bag into the chest. */
     boolean refillDeposit = false;
 
+    /**
+     * Constant mode: with no fitting piece in the chest and the player about to be without one,
+     * bring the chest's worn piece with the most durability left (off: what is in the chest is
+     * never used up).
+     */
+    boolean refillUseWorn = false;
+
     /** Auto Protect on: the sword blocking by itself with health low in a fight. */
     boolean autoProtect = false;
 
     /**
-     * In an Auto Protect emergency, the windows where the sword cannot block (the inventory, a
-     * chest, the Esc menu, the chat) close so it can, as Smart Effect does for the apple.
+     * "Block in menus": with any window open (the inventory, a chest, the chat, the Esc menu, the
+     * Panel), the sword blocking — whoever handles the inventory in the middle of a fight does not
+     * stand there with the arm down.
      */
-    boolean protectCloseScreens = true;
+    boolean protectDefend = true;
 
     /**
      * "Low health block": with health at the limit in a fight, the sword blocking until health is
@@ -276,6 +277,15 @@ final class CombatConfig {
 
     /** Item Lock for every item, not only the valuable ones. */
     boolean itemLockAll = false;
+
+    /** Auto Trash: throws away the items on {@link #trashItems}. */
+    boolean autoTrash = false;
+
+    /** The trash: item ids ("minecraft:dirt"). */
+    final List<String> trashItems = new java.util.ArrayList<>(AutoTrash.DEFAULTS);
+
+    /** Auto Trash also empties the hotbar (never the slot in hand). */
+    boolean trashHotbar = false;
 
     /** Auto Stash on (by itself, with health low); its key makes a trip either way. */
     boolean autoStash = false;

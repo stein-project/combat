@@ -89,6 +89,8 @@ final class Features {
                             m -> m.config.autoProtect),
                     new Feature("itemLock", "steincombat.itemLock", ITEMS, m -> m.config.itemLock),
                     new Feature(
+                            "autoTrash", "steincombat.autoTrash", ITEMS, m -> m.config.autoTrash),
+                    new Feature(
                             "autoStash", "steincombat.autoStash", ITEMS, m -> m.config.autoStash),
                     new Feature(
                             "lootRadar", "steincombat.lootRadar", ITEMS, m -> m.config.lootRadar),

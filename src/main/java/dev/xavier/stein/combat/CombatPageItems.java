@@ -8,10 +8,12 @@
 
 package dev.xavier.stein.combat;
 
+import dev.xavier.stein.loader.api.Inventory;
 import dev.xavier.stein.loader.api.Keys;
 import dev.xavier.stein.loader.api.Lang;
 import dev.xavier.stein.loader.api.Option;
 import dev.xavier.stein.loader.api.Page;
+import dev.xavier.stein.loader.api.Stacks;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +49,7 @@ final class CombatPageItems {
     void fill(Page p) {
         valuables(p);
         itemLock(p);
+        autoTrash(p);
         autoStash(p);
         lootRadar(p);
         supplyForecast(p);
@@ -153,6 +156,92 @@ final class CombatPageItems {
                     keys.itemLock.setKey(Keys.KEY_NONE);
                     mod.save();
                 });
+    }
+
+    /**
+     * Auto Trash: on, the trash list (the trash can removes an item), adding the item in the hand
+     * or one typed by its id, and the hotbar.
+     */
+    private void autoTrash(Page p) {
+        p.section(tr("steincombat.autoTrash"));
+        p.option(
+                page.feature(
+                        "steincombat.autoTrash",
+                        () -> c.autoTrash,
+                        v -> {
+                            c.autoTrash = v;
+                            mod.save();
+                        },
+                        keys.autoTrash,
+                        "autoTrash"));
+        p.option(
+                new LiveLine(
+                        tr("steincombat.trash.items"),
+                        () -> Lang.tr("steincombat.trash.count", c.trashItems.size()),
+                        () -> {}));
+        p.rows(
+                () -> {
+                    List<Page.Item> rows = new ArrayList<>();
+                    for (String id : new ArrayList<>(c.trashItems)) {
+                        rows.add(
+                                new Page.Item(
+                                        itemName(id),
+                                        id.startsWith("minecraft:") ? id.substring(10) : id,
+                                        false,
+                                        null,
+                                        () -> {
+                                            c.trashItems.remove(id);
+                                            mod.save();
+                                        }));
+                    }
+                    return rows;
+                },
+                tr("steincombat.trash.empty"));
+        p.option(
+                Option.action(
+                        INDENT + tr("steincombat.trash.addHeld"),
+                        "+",
+                        () -> {
+                            Object held = Inventory.heldItem();
+                            String id = held == null ? "" : AutoTrash.normalize(Stacks.id(held));
+                            if (!id.isEmpty() && !c.trashItems.contains(id)) {
+                                c.trashItems.add(id);
+                                mod.save();
+                            }
+                        }));
+        p.option(
+                new Option.Text(
+                        INDENT + tr("steincombat.trash.addId"),
+                        "cobblestone",
+                        () -> "",
+                        v -> {
+                            String id = AutoTrash.normalize(v);
+                            if (!id.isEmpty() && !c.trashItems.contains(id)) {
+                                c.trashItems.add(id);
+                                mod.save();
+                            }
+                        }));
+        p.option(
+                page.toggle(
+                        tr("steincombat.trash.hotbar"),
+                        () -> c.trashHotbar,
+                        v -> c.trashHotbar = v));
+        p.restore(
+                () -> {
+                    c.autoTrash = false;
+                    c.trashHotbar = false;
+                    c.trashItems.clear();
+                    c.trashItems.addAll(AutoTrash.DEFAULTS);
+                    keys.autoTrash.setKey(Keys.KEY_NONE);
+                    mod.save();
+                });
+    }
+
+    /** The item's name in the game's language, from its id; the id itself if unknown. */
+    private static String itemName(String id) {
+        Object s = Stacks.create(id, 1, 0);
+        String name = s == null ? "" : Stacks.name(s);
+        return name == null || name.isEmpty() ? id : name;
     }
 
     /** Auto Stash: on with health low, the key for a trip now, and what stays. */
