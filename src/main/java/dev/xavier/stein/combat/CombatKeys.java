@@ -40,6 +40,7 @@ final class CombatKeys {
     // The item modules: Auto Stash's key makes a trip; the others turn the module on and off.
     final Keys.Binding autoStash;
     final Keys.Binding itemLock;
+    final Keys.Binding autoTrash;
     final Keys.Binding lootRadar;
 
     /** Supply Tracker: starts a rush, or ends the one running. */
@@ -62,6 +63,7 @@ final class CombatKeys {
         autoclick = Keys.bind("key.steincombat.autoclick", Keys.KEY_NONE, CATEGORY);
         autoStash = Keys.bind("key.steincombat.autoStash", Keys.KEY_NONE, CATEGORY);
         itemLock = Keys.bind("key.steincombat.itemLock", Keys.KEY_NONE, CATEGORY);
+        autoTrash = Keys.bind("key.steincombat.autoTrash", Keys.KEY_NONE, CATEGORY);
         lootRadar = Keys.bind("key.steincombat.lootRadar", Keys.KEY_NONE, CATEGORY);
         forecastRush = Keys.bind("key.steincombat.forecastRush", Keys.KEY_NONE, CATEGORY);
     }
@@ -129,6 +131,10 @@ final class CombatKeys {
         while (itemLock.consumeClick()) {
             c.itemLock = !c.itemLock;
             toggled("steincombat.itemLock", c.itemLock);
+        }
+        while (autoTrash.consumeClick()) {
+            c.autoTrash = !c.autoTrash;
+            toggled("steincombat.autoTrash", c.autoTrash);
         }
         while (lootRadar.consumeClick()) {
             c.lootRadar = !c.lootRadar;

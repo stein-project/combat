@@ -508,12 +508,19 @@ final class CombatPage {
                             mod.save();
                         },
                         v -> String.valueOf(Math.round(v)));
-        page.option(target.visibleWhen(() -> c.refillMode != AutoRefill.WHEN_EMPTY));
+        page.option(target.visibleWhen(() -> c.refillMode == AutoRefill.ON_KEY));
         page.option(
                 toggle(
-                        tr("steincombat.refill.deposit"),
-                        () -> c.refillDeposit,
-                        v -> c.refillDeposit = v));
+                                tr("steincombat.refill.useWorn"),
+                                () -> c.refillUseWorn,
+                                v -> c.refillUseWorn = v)
+                        .visibleWhen(() -> c.refillMode == AutoRefill.CONSTANT));
+        page.option(
+                toggle(
+                                tr("steincombat.refill.deposit"),
+                                () -> c.refillDeposit,
+                                v -> c.refillDeposit = v)
+                        .visibleWhen(() -> c.refillMode != AutoRefill.CONSTANT));
         page.option(
                 toggle(
                         tr("steincombat.refill.window"),
@@ -528,6 +535,7 @@ final class CombatPage {
                     c.refillMode = d.refillMode;
                     c.refillTarget = d.refillTarget;
                     c.refillDeposit = d.refillDeposit;
+                    c.refillUseWorn = d.refillUseWorn;
                     keys.autoRefill.setKey(Keys.KEY_NONE);
                     mod.save();
                 });
@@ -584,11 +592,6 @@ final class CombatPage {
                         tr("steincombat.effect.onDamage"),
                         () -> c.effectOnDamage,
                         v -> c.effectOnDamage = v));
-        page.option(
-                toggle(
-                        tr("steincombat.effect.closeMenus"),
-                        () -> c.effectCloseMenus,
-                        v -> c.effectCloseMenus = v));
         page.restore(
                 () -> {
                     CombatConfig d = new CombatConfig();
@@ -599,7 +602,6 @@ final class CombatPage {
                     c.effectWaitEnemy = d.effectWaitEnemy;
                     c.effectEnemyRadius = d.effectEnemyRadius;
                     c.effectOnDamage = d.effectOnDamage;
-                    c.effectCloseMenus = d.effectCloseMenus;
                     mod.save();
                     keys.smartEffect.setKey(Keys.KEY_NONE);
                 });
@@ -623,15 +625,14 @@ final class CombatPage {
                         "autoProtect"));
         page.option(
                 toggle(
+                        tr("steincombat.protect.defend"),
+                        () -> c.protectDefend,
+                        v -> c.protectDefend = v));
+        page.option(
+                toggle(
                         tr("steincombat.protect.survive"),
                         () -> c.protectSurvive,
                         v -> c.protectSurvive = v));
-        page.option(
-                toggle(
-                                INDENT + tr("steincombat.protect.closeScreens"),
-                                () -> c.protectCloseScreens,
-                                v -> c.protectCloseScreens = v)
-                        .visibleWhen(() -> c.protectSurvive));
         // In whole hearts (the file keeps health points: 2 per heart).
         Option low =
                 Option.slider(
@@ -668,7 +669,7 @@ final class CombatPage {
                 () -> {
                     CombatConfig d = new CombatConfig();
                     c.autoProtect = d.autoProtect;
-                    c.protectCloseScreens = d.protectCloseScreens;
+                    c.protectDefend = d.protectDefend;
                     c.protectSurvive = d.protectSurvive;
                     c.protectLowHealth = d.protectLowHealth;
                     c.protectResumeHealth = d.protectResumeHealth;

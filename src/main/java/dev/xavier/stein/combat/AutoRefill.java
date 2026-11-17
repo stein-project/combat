@@ -12,6 +12,7 @@ import dev.xavier.stein.loader.api.Chat;
 import dev.xavier.stein.loader.api.Entities;
 import dev.xavier.stein.loader.api.Inventory;
 import dev.xavier.stein.loader.api.Lang;
+import dev.xavier.stein.loader.api.Stacks;
 
 /**
  * Auto Refill: when the inventory's armor spares run out (or fall below the target, in constant
@@ -37,9 +38,23 @@ import dev.xavier.stein.loader.api.Lang;
  * off. Together, Auto Armor puts on and the refill restocks the bag; alone, the refill only keeps
  * the bag stocked with spares.
  *
- * <p>Three modes: when a piece's spares run out, constant (keeps the target spares per piece) and
- * on key — then Auto Refill does not stay on: the key (or the Panel button) makes one trip to the
- * chest right away, up to the target, and it turns itself off at the end.
+ * <p>Three modes: when a piece's spares run out, constant and on key — then Auto Refill does not
+ * stay on: the key (or the Panel button) makes one trip to the chest right away, up to the target,
+ * and it turns itself off at the end.
+ *
+ * <p><b>Constant</b> keeps no count. A worn piece in the inventory (Auto Armor took it off at the
+ * threshold) goes to the chest in exchange for a new one of the same kind, picked by the piece's
+ * rule; with no such piece in the chest, the worn one stays. A piece the player is about to lack
+ * (its slot empty, or the worn one on at the threshold, and nothing of the kind in the inventory)
+ * gets one from the chest; with none that fits and "use worn pieces from the chest" on ({@link
+ * CombatConfig#refillUseWorn}), the worn piece with the most durability left in the chest comes
+ * instead, so the player never fights without it.
+ *
+ * <p>In constant mode Auto Armor always goes first: no trip starts while it would act ({@link
+ * AutoArmor#wouldAct}), and a trip in progress closes the chest as soon as a piece's slot is empty
+ * with a spare at hand ({@link AutoArmor#urgent}; the chest window has no armor slots). A piece the
+ * chest did not have is not asked for again for a minute, so a chest without it is not opened over
+ * and over.
  *
  * <p><b>Checked with the server</b>, as in Auto Armor: the client applies each click at once, and a
  * click the server silently refuses would leave the client thinking it brought what it did not. So:
@@ -109,6 +124,14 @@ final class AutoRefill {
 
     /** Pieces brought on this trip. */
     private int moved;
+
+    /**
+     * Constant mode: how long the chest is known to lack a fitting piece, and any piece, per piece.
+     */
+    private static final int LACK_TICKS = 1200;
+
+    private final long[] lacksFitUntil = new long[4];
+    private final long[] lacksAnyUntil = new long[4];
 
     /**
      * The spares that fit when the chest opened: the notice counts what the trip gained, not the
@@ -296,6 +319,7 @@ final class AutoRefill {
         if (!Inventory.isContainerOpen()
                 && !Inventory.isScreenOpen()
                 && !mod.armorSettling()
+                && !(c.refillMode == CONSTANT && AutoArmor.wouldAct(c))
                 && !mod.autoStash.busy()
                 && needs(c)
                 && roomToBring(c)) {
@@ -370,7 +394,15 @@ final class AutoRefill {
             return;
         }
         stepWait = STEP_TICKS;
-        int r = step(c);
+        if (c.refillMode == CONSTANT && Inventory.cursor() == null && AutoArmor.urgent(c)) {
+            // A piece's slot is empty and a spare is here: the chest window has no armor slots,
+            // so it closes now and Auto Armor puts it on in that tick. (A worn piece on waits for
+            // the trip: a few ticks more for it beat another trip.)
+            log("closes for Auto Armor");
+            finish(true);
+            return;
+        }
+        int r = c.refillMode == CONSTANT ? constantStep(c) : step(c);
         if (r == ACTED) {
             dirty = true;
             stuck = 0;
@@ -496,6 +528,71 @@ final class AutoRefill {
     }
 
     /**
+     * Constant mode's step: a worn piece in the inventory goes to the chest for a new one of its
+     * kind; a piece the player is about to lack gets one (a worn one from the chest, if allowed and
+     * there is nothing better).
+     */
+    private int constantStep(CombatConfig c) {
+        if (Inventory.cursor() != null) {
+            return step(c); // the item left on the cursor goes back first
+        }
+        int free = ArmorSlots.freeSlot();
+        for (int piece : ArmorSlots.neediestFirst(c)) {
+            AutoArmor.Rule r = c.armorRule(piece);
+            if (r.mode == AutoArmor.OFF) {
+                continue;
+            }
+            int from = ArmorSlots.bestInChest(piece, r);
+            int worn = ArmorSlots.wornOf(c, piece);
+            if (worn >= 0) {
+                if (from < 0) {
+                    lacksFitUntil[piece] = now + LACK_TICKS; // the worn one stays
+                    continue;
+                }
+                lastFrom = from;
+                return swapIn(piece, r, from, worn);
+            }
+            // With the chest open anyway, every piece leaves with a spare in the bag.
+            if (AutoArmor.spares(piece, r) > 0) {
+                continue;
+            }
+            if (from < 0) {
+                lacksFitUntil[piece] = now + LACK_TICKS;
+                from = c.refillUseWorn && lacking(c, piece) ? ArmorSlots.wornInChest(piece, r) : -1;
+                if (from < 0) {
+                    lacksAnyUntil[piece] = now + LACK_TICKS;
+                    continue;
+                }
+            }
+            lastFrom = from;
+            int give = free < 0 ? ArmorSlots.makeRoom(c, piece) : -1;
+            if (give >= 0) {
+                return swapIn(piece, r, from, give);
+            }
+            if (free < 0) {
+                bagFull = true;
+                continue;
+            }
+            return pullIn(piece, from, free);
+        }
+        return NOTHING;
+    }
+
+    /**
+     * The player is about to be without the piece: its slot is empty or the one on is at the
+     * threshold, and the inventory has nothing of the kind left (not even a worn one).
+     */
+    private static boolean lacking(CombatConfig c, int piece) {
+        AutoArmor.Rule r = c.armorRule(piece);
+        Object on = Inventory.armor(piece);
+        boolean going =
+                on == null
+                        || Stacks.isDamageable(on)
+                                && Stacks.maxDamage(on) - Stacks.damage(on) <= r.threshold;
+        return going && ArmorSlots.anyOf(piece) < 0;
+    }
+
+    /**
      * The chest's piece into the worn one's place, and the worn one into the chest: three clicks.
      */
     private int swapIn(int piece, AutoArmor.Rule r, int from, int give) {
@@ -506,8 +603,12 @@ final class AutoRefill {
         }
         Inventory.pickup(to);
         Inventory.pickup(from);
+        Object got = Inventory.stack(give);
         boolean ok =
-                Inventory.cursor() == null && AutoArmor.usable(Inventory.stack(give), piece, r);
+                Inventory.cursor() == null
+                        && got != null
+                        && Inventory.armorPiece(got) == piece
+                        && (AutoArmor.usable(got, piece, r) || c().refillUseWorn);
         if (ok) {
             moved++;
         }
@@ -599,11 +700,18 @@ final class AutoRefill {
         }
     }
 
+    private CombatConfig c() {
+        return mod.config;
+    }
+
     /**
-     * Needs a spare of some piece turned on? (zero, in when-empty mode; below the target, in
-     * constant and on key)
+     * Needs a trip? Constant: a worn piece the chest may have a new one for, or a piece about to be
+     * lacking; when empty: a piece with no spare; on key: a piece below the target.
      */
-    private static boolean needs(CombatConfig c) {
+    private boolean needs(CombatConfig c) {
+        if (c.refillMode == CONSTANT) {
+            return needsConstant(c);
+        }
         for (int piece = Inventory.HELMET; piece >= Inventory.BOOTS; piece--) {
             AutoArmor.Rule r = c.armorRule(piece);
             if (r.mode == AutoArmor.OFF) {
@@ -611,6 +719,24 @@ final class AutoRefill {
             }
             int spares = AutoArmor.spares(piece, r);
             if (c.refillMode == WHEN_EMPTY ? spares == 0 : spares < c.refillTarget) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean needsConstant(CombatConfig c) {
+        for (int piece = Inventory.HELMET; piece >= Inventory.BOOTS; piece--) {
+            AutoArmor.Rule r = c.armorRule(piece);
+            if (r.mode == AutoArmor.OFF) {
+                continue;
+            }
+            if (ArmorSlots.wornOf(c, piece) >= 0 && now >= lacksFitUntil[piece]) {
+                return true;
+            }
+            if (lacking(c, piece)
+                    && (now >= lacksFitUntil[piece]
+                            || c.refillUseWorn && now >= lacksAnyUntil[piece])) {
                 return true;
             }
         }

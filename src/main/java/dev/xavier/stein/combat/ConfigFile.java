@@ -140,9 +140,8 @@ final class ConfigFile {
         c.autoStrength = bool(o, "autoStrength", c.autoStrength);
         c.effectWaitEnemy = bool(o, "effectWaitEnemy", c.effectWaitEnemy);
         c.effectOnDamage = bool(o, "effectOnDamage", c.effectOnDamage);
-        c.effectCloseMenus = bool(o, "effectCloseMenus", c.effectCloseMenus);
         c.autoProtect = bool(o, "autoProtect", c.autoProtect);
-        c.protectCloseScreens = bool(o, "protectCloseScreens", c.protectCloseScreens);
+        c.protectDefend = bool(o, "protectDefend", c.protectDefend);
         // A file from before "Low health block": whoever already used Auto Protect keeps it as it
         // was (only blocking with a screen open); the new part is for turning on in the Panel.
         c.protectSurvive = bool(o, "protectSurvive", c.protectSurvive && !c.autoProtect);
@@ -179,6 +178,7 @@ final class ConfigFile {
             c.refillTarget = clamp(o.get("refillTarget").getAsInt(), 1, 27);
         }
         c.refillDeposit = bool(o, "refillDeposit", c.refillDeposit);
+        c.refillUseWorn = bool(o, "refillUseWorn", c.refillUseWorn);
         if (o.has("effectEnemyRadius")) {
             c.effectEnemyRadius = clamp(o.get("effectEnemyRadius").getAsInt(), 2, 64);
         }
@@ -256,9 +256,8 @@ final class ConfigFile {
         o.addProperty("effectWaitEnemy", c.effectWaitEnemy);
         o.addProperty("effectEnemyRadius", c.effectEnemyRadius);
         o.addProperty("effectOnDamage", c.effectOnDamage);
-        o.addProperty("effectCloseMenus", c.effectCloseMenus);
         o.addProperty("autoProtect", c.autoProtect);
-        o.addProperty("protectCloseScreens", c.protectCloseScreens);
+        o.addProperty("protectDefend", c.protectDefend);
         o.addProperty("protectSurvive", c.protectSurvive);
         o.addProperty("protectLowHealth", c.protectLowHealth);
         o.addProperty("protectResumeHealth", c.protectResumeHealth);
@@ -272,6 +271,7 @@ final class ConfigFile {
         o.addProperty("refillMode", c.refillMode);
         o.addProperty("refillTarget", c.refillTarget);
         o.addProperty("refillDeposit", c.refillDeposit);
+        o.addProperty("refillUseWorn", c.refillUseWorn);
         o.addProperty("armorPerPiece", c.armorPerPiece);
         o.add("armorAll", writeRule(c.armorAll));
         for (int i = 0; i < 4; i++) {

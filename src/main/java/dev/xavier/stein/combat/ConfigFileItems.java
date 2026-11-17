@@ -33,6 +33,17 @@ final class ConfigFileItems {
         }
         c.itemLock = bool(o, "itemLock", c.itemLock);
         c.itemLockAll = bool(o, "itemLockAll", c.itemLockAll);
+        c.autoTrash = bool(o, "autoTrash", c.autoTrash);
+        c.trashHotbar = bool(o, "trashHotbar", c.trashHotbar);
+        if (o.has("trashItems") && o.get("trashItems").isJsonArray()) {
+            c.trashItems.clear();
+            for (JsonElement e : o.getAsJsonArray("trashItems")) {
+                String id = AutoTrash.normalize(e.getAsString());
+                if (!id.isEmpty() && !c.trashItems.contains(id)) {
+                    c.trashItems.add(id);
+                }
+            }
+        }
         c.autoStash = bool(o, "autoStash", c.autoStash);
         c.stashHealth = integer(o, "stashHealth", c.stashHealth, 1, 19);
         if (o.has("stashCommand")) {
@@ -63,6 +74,13 @@ final class ConfigFileItems {
         o.add("valuables", rules);
         o.addProperty("itemLock", c.itemLock);
         o.addProperty("itemLockAll", c.itemLockAll);
+        o.addProperty("autoTrash", c.autoTrash);
+        o.addProperty("trashHotbar", c.trashHotbar);
+        JsonArray trash = new JsonArray();
+        for (String id : c.trashItems) {
+            trash.add(new com.google.gson.JsonPrimitive(id));
+        }
+        o.add("trashItems", trash);
         o.addProperty("autoStash", c.autoStash);
         o.addProperty("stashHealth", c.stashHealth);
         o.addProperty("stashCommand", c.stashCommand);

@@ -101,6 +101,57 @@ final class ArmorSlots {
     }
 
     /**
+     * A worn piece of exactly this kind in the inventory (at its rule's threshold); -1 with none.
+     */
+    static int wornOf(CombatConfig c, int piece) {
+        AutoArmor.Rule r = c.armorRule(piece);
+        for (int i = 0; i < Inventory.ARMOR_START; i++) {
+            Object s = Inventory.stack(i);
+            if (s != null
+                    && Inventory.armorPiece(s) == piece
+                    && Stacks.isDamageable(s)
+                    && Stacks.maxDamage(s) - Stacks.damage(s) <= r.threshold) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Any piece of the kind in the inventory (hotbar and bag), worn or not; -1 with none. */
+    static int anyOf(int piece) {
+        for (int i = 0; i < Inventory.ARMOR_START; i++) {
+            Object s = Inventory.stack(i);
+            if (s != null && Inventory.armorPiece(s) == piece) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * The chest's worn piece of the kind with the most durability left that the rule's enchantment
+     * filter accepts; -1 with none.
+     */
+    static int wornInChest(int piece, AutoArmor.Rule r) {
+        int best = -1;
+        int bestLeft = 0;
+        for (int slot = 0; slot < Inventory.containerSize(); slot++) {
+            Object s = Inventory.slotStack(slot);
+            if (s == null
+                    || Inventory.armorPiece(s) != piece
+                    || !r.unenchanted && !Stacks.isEnchanted(s)) {
+                continue;
+            }
+            int left = Stacks.maxDamage(s) - Stacks.damage(s);
+            if (left > bestLeft) {
+                best = slot;
+                bestLeft = left;
+            }
+        }
+        return best;
+    }
+
+    /**
      * A bag slot whose item can go to the chest to make room for a spare of {@code piece}, when the
      * bag is full and has no worn piece to swap: without it the piece would stay off until a space
      * opens. Never the hotbar. In order, what costs the player least:

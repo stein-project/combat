@@ -9,19 +9,25 @@
 package dev.xavier.stein.combat;
 
 import dev.xavier.stein.loader.api.Entities;
+import dev.xavier.stein.loader.api.Screens;
 
 /**
- * Auto Protect: the sword blocking by itself with health low in a fight (<b>Low health block</b>):
- * with health at the limit ({@link CombatConfig#protectLowHealth}) in a fight, the sword blocking
- * until health is back ({@link CombatConfig#protectResumeHealth}). While blocking the hit does not
- * go out — the game does not hit with an item in use, nor with the autoclick —, so at close range
- * the player stops taking mcMMO's counterattack (which returns the damage of whoever hits) and
- * takes half the damage of whoever hits them.
+ * Auto Protect: the sword blocking by itself. Two parts, each with its own switch, under Auto
+ * Protect's switch:
  *
- * <p>It does not block just because a window is open. In an emergency, as Smart Effect does for the
- * apple, the window where the sword cannot block (the inventory, a chest, the Esc menu, the chat)
- * closes so it can ({@link CombatConfig#protectCloseScreens}); a chest trip of Combat's own (Auto
- * Refill, Auto Stash) is left alone.
+ * <ul>
+ *   <li><b>Block in menus</b> ({@link CombatConfig#protectDefend}): with any window open (the
+ *       inventory, a chest, the chat, the Esc menu, the Panel), the sword in hand and blocking —
+ *       whoever handles the inventory in the middle of a fight does not stand there with the arm
+ *       down. The use goes out directly (the game reads no keys with a window open), so it works in
+ *       every window;
+ *   <li><b>Low health block</b>: with health at the limit ({@link CombatConfig#protectLowHealth})
+ *       in a fight, the sword blocking until health is back ({@link
+ *       CombatConfig#protectResumeHealth}). While blocking the hit does not go out — the game does
+ *       not hit with an item in use, nor with the autoclick —, so at close range the player stops
+ *       taking mcMMO's counterattack (which returns the damage of whoever hits) and takes half the
+ *       damage of whoever hits them.
+ * </ul>
  *
  * <p><b>How "Low health block" behaves</b>, with two health marks (hysteresis):
  *
@@ -125,9 +131,15 @@ final class AutoProtect {
         return holding && fighting && override == 0;
     }
 
-    /** Auto Protect wants the sword blocking now. */
+    /** "Block in menus": the switches on and a window open. */
+    boolean defend() {
+        CombatConfig c = mod.config;
+        return c.autoProtect && c.protectDefend && Screens.isOpen();
+    }
+
+    /** Either part wants the sword blocking now. */
     boolean wantsBlock() {
-        return survive();
+        return defend() || survive();
     }
 
     /** "Low health block" acting (even with no fight now): Speed and Strength wait for health. */

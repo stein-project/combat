@@ -16,6 +16,7 @@
     "autoRefill",
     "smartEffect",
     "itemLock",
+    "autoTrash",
     "autoStash",
     "lootRadar",
     "supplyForecast"
