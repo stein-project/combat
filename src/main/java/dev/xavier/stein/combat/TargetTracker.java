@@ -18,6 +18,10 @@ import java.util.Locale;
  * Who the target element shows: the last player you hit, while in range and for some seconds after
  * the hit; without a recent hit, the player in your crosshair (the crosshair's ray up to the
  * range).
+ *
+ * <p>A target that dies stays on screen for a moment as dead, and their nick is not taken again
+ * right away: on servers that respawn at once (or fake the death and heal), the same nick comes
+ * back with full health, which used to read as "still alive, full health".
  */
 final class TargetTracker {
 
@@ -29,6 +33,12 @@ final class TargetTracker {
 
     /** How often the crosshair's ray is cast. */
     private static final long AIM_EVERY = 50_000_000L;
+
+    /** How long a dead target stays on screen. */
+    private static final long DEAD_SHOWN = 1_500_000_000L;
+
+    /** How long after a death the same nick is not taken from the crosshair again. */
+    private static final long DEAD_QUIET = 2_500_000_000L;
 
     /** {@code -Dsteinhud.targetLog=true}: who comes in and why they leave. */
     static final boolean LOG = Boolean.getBoolean("steinhud.targetLog");
@@ -46,6 +56,12 @@ final class TargetTracker {
 
     private long lastAim;
     private long aimChecked;
+
+    /** The target that died, their nick, and when. */
+    private Object dead;
+
+    private String deadNick;
+    private long deadAt;
 
     TargetTracker(TargetConfig c, Log log) {
         this.c = c;
@@ -66,6 +82,10 @@ final class TargetTracker {
             return;
         }
         long now = System.nanoTime();
+        if (entity == dead) {
+            return;
+        }
+        deadNick = null; // hitting them again: they are back in the fight
         if (entity != hitTarget
                 && hitTarget != null
                 && inRange(hitTarget)
@@ -74,6 +94,29 @@ final class TargetTracker {
         }
         hitTarget = entity;
         lastHit = now;
+    }
+
+    /**
+     * A player died (the server's death status, health at 0, or what a respawn looks like: back to
+     * full at once, or the same nick in another entity). Only the one on screen matters.
+     */
+    void died(Object entity) {
+        if (entity == null || entity == dead || (entity != hitTarget && entity != aimTarget)) {
+            return;
+        }
+        if (LOG) {
+            log.info("target " + Entities.name(entity) + " died");
+        }
+        dead = entity;
+        deadNick = Entities.name(entity);
+        deadAt = System.nanoTime();
+        hitTarget = null;
+        aimTarget = null;
+    }
+
+    /** Is this the target that just died? */
+    boolean isDead(Object entity) {
+        return entity != null && entity == dead;
     }
 
     /** Alive, still in the client's world and in range. */
@@ -107,7 +150,7 @@ final class TargetTracker {
                                 .cutAtBlock()
                                 .exclude(me));
         for (Targeting.Hit h : ray.hits) {
-            if (Entities.isPlayer(h.entity)) {
+            if (Entities.isPlayer(h.entity) && !quiet(h.entity, now)) {
                 if (LOG && h.entity != aimTarget) {
                     log.info(
                             String.format(
@@ -123,8 +166,34 @@ final class TargetTracker {
         }
     }
 
+    /** Just died: the same nick is left alone for a moment (their respawn). */
+    private boolean quiet(Object entity, long now) {
+        return deadNick != null
+                && now - deadAt < DEAD_QUIET
+                && deadNick.equals(Entities.name(entity));
+    }
+
+    /**
+     * The same nick in another entity of the world: the server removed the old one and spawned a
+     * new one, which is what a respawn is.
+     */
+    private static boolean respawned(Object t) {
+        Object now = Entities.player(Entities.name(t));
+        return now != null && now != t;
+    }
+
     /** Who goes on screen: the last one hit, if still valid; otherwise the crosshair's. */
     Object choose(long now) {
+        if (dead != null) {
+            if (now - deadAt < DEAD_SHOWN) {
+                return dead;
+            }
+            dead = null;
+        }
+        if (hitTarget != null && respawned(hitTarget)) {
+            died(hitTarget);
+            return dead;
+        }
         if (hitTarget != null
                 && (!inRange(hitTarget) || now - lastHit >= (long) (c.seconds * 1e9))) {
             if (LOG) {

@@ -75,6 +75,15 @@ final class CombatConfig {
      */
     boolean ghostAllies = true;
 
+    /** The Fight View leaves my clan as it is (neither a ghost nor gone). */
+    boolean clanInView = false;
+
+    /**
+     * The Fight View makes everyone else wearing all their armor (whoever Armor Gap does not mark)
+     * a ghost.
+     */
+    boolean ghostArmored = false;
+
     /**
      * The old single switch for both groups: no name above the ghosts' heads. Kept in the file;
      * files without the two choices below start them from it.
@@ -326,6 +335,24 @@ final class CombatConfig {
     int radarDistance = 32;
     boolean radarArrows = true;
     boolean radarSound = true;
+
+    /** Armor Gap: players missing armor pieces stand out ({@link ArmorGap}). */
+    boolean armorGap = false;
+
+    /** How many pieces must be missing (1 to 4). */
+    int armorGapMissing = 1;
+
+    /** Left out if any worn piece has Protection at this level or above (0: never). */
+    int armorGapProtection = 0;
+
+    /** {@link ArmorGap#GLOW}, {@link ArmorGap#HITBOX} or {@link ArmorGap#BOTH}. */
+    int armorGapStyle = ArmorGap.GLOW;
+
+    /** The color code of the glow and the outline. */
+    char armorGapColor = '6';
+
+    /** Up to how far, in blocks. */
+    int armorGapRange = 32;
 
     /**
      * Supply Tracker (the "supplyForecast" key from when it had another name): how long the rush

@@ -50,6 +50,7 @@ final class CombatPage {
     private void fill(Page page) {
         page.icon("combat");
         combat(page);
+        ArmorGapPage.fill(mod, this, page);
         movement(page);
         team(page);
         autoArmor(page);
@@ -173,27 +174,38 @@ final class CombatPage {
         allies(page);
     }
 
-    /** My clan: Clan Protect, the hide key and everything about how my clan is hidden. */
+    /**
+     * My clan and the Fight View: Clan Protect (what a hit on my clan does: lands, is blocked or
+     * goes through to whoever is behind), then the Fight View key and what it does to each group —
+     * my clan (visible, ghost or gone; a gone clan's hits go through or follow Clan Protect; the
+     * ghosts' name; the presence marker), the allies (ghosts or not; their name) and everyone else
+     * wearing all their armor (ghosts or not).
+     */
     private void myClan(Page page) {
         page.section(tr("steincombat.section.myClan"));
+        // Clan Protect: off, block or hit through, kept in its two switches (the key turns it on
+        // and off; how it protects stays chosen).
         page.option(
-                feature(
-                        "steincombat.protect",
-                        () -> c.protectAllies,
-                        v -> {
-                            c.protectAllies = v;
-                            mod.save();
-                        },
-                        keys.clanProtect,
-                        "clanProtect"));
-        // Clan Protect's sub-option: the hit cancelled on my clan goes through to whoever is
-        // behind.
-        page.option(
-                toggle(
-                                INDENT + tr("steincombat.clanHitThrough"),
-                                () -> c.clanHitThrough,
-                                v -> c.clanHitThrough = v)
-                        .visibleWhen(() -> c.protectAllies));
+                Option.cycle(
+                                tr("steincombat.protect"),
+                                new String[] {
+                                    tr("steincombat.protect.off"),
+                                    tr("steincombat.protect.block"),
+                                    tr("steincombat.protect.through")
+                                },
+                                () -> !c.protectAllies ? 0 : c.clanHitThrough ? 2 : 1,
+                                i -> {
+                                    c.protectAllies = i != 0;
+                                    if (i != 0) {
+                                        c.clanHitThrough = i == 2;
+                                    }
+                                    mod.save();
+                                })
+                        .withKey(keys.clanProtect::key, keys.clanProtect::setKey)
+                        .withCheck(
+                                tr(SHOW_IN_LIST),
+                                () -> listed("clanProtect"),
+                                v -> setListed("clanProtect", v)));
         ClanGuard guard = mod.guard;
         page.option(
                 feature(
@@ -202,36 +214,56 @@ final class CombatPage {
                         v -> guard.hiding = v,
                         keys.hide,
                         "hiddenAllies"));
-        // How the hide key hides my clan: disappearing (the aim still finds them), as ghosts (hits
-        // go through) or as if they did not exist.
+        // My clan in the Fight View: visible, a ghost, or gone (hideStyle keeps the two ways of
+        // being gone).
         page.option(
                 Option.cycle(
-                        INDENT + tr("steincombat.hideStyle"),
+                        INDENT + tr("steincombat.view.clan"),
                         new String[] {
-                            tr("steincombat.hideStyle.disappear"),
-                            tr("steincombat.hideStyle.ghost"),
-                            tr("steincombat.hideStyle.gone")
+                            tr("steincombat.view.visible"),
+                            tr("steincombat.view.ghost"),
+                            tr("steincombat.view.gone")
                         },
-                        () -> c.hideStyle,
+                        () -> c.clanInView ? 0 : c.hideStyle == ClanGuard.GHOST ? 1 : 2,
                         i -> {
-                            c.hideStyle = i;
+                            c.clanInView = i == 0;
+                            if (i == 1) {
+                                c.hideStyle = ClanGuard.GHOST;
+                            } else if (i == 2 && c.hideStyle == ClanGuard.GHOST) {
+                                c.hideStyle = ClanGuard.GONE;
+                            }
                             mod.save();
                         }));
+        BooleanSupplier clanGone = () -> !c.clanInView && c.hideStyle != ClanGuard.GHOST;
+        page.option(
+                Option.cycle(
+                                INDENT + INDENT + tr("steincombat.view.goneHit"),
+                                new String[] {
+                                    tr("steincombat.view.goneHit.through"),
+                                    tr("steincombat.view.goneHit.protect")
+                                },
+                                () -> c.hideStyle == ClanGuard.DISAPPEAR ? 1 : 0,
+                                i -> {
+                                    c.hideStyle = i == 1 ? ClanGuard.DISAPPEAR : ClanGuard.GONE;
+                                    mod.save();
+                                })
+                        .visibleWhen(clanGone));
         page.option(
                 ghostName(
+                                INDENT,
                                 "steincombat.clanGhostName",
                                 () -> c.clanGhostName,
                                 i -> c.clanGhostName = i)
-                        .visibleWhen(() -> c.hideStyle == ClanGuard.GHOST));
+                        .visibleWhen(() -> !c.clanInView && c.hideStyle == ClanGuard.GHOST));
         page.option(
                 toggle(
-                                INDENT + tr("steincombat.presenceMarker"),
+                                INDENT + INDENT + tr("steincombat.presenceMarker"),
                                 () -> c.presenceMarker,
                                 v -> c.presenceMarker = v)
-                        .visibleWhen(() -> c.hideStyle != ClanGuard.GHOST));
+                        .visibleWhen(clanGone));
         page.option(
                 Option.cycle(
-                                INDENT + INDENT + tr("steincombat.markerStyle"),
+                                INDENT + INDENT + INDENT + tr("steincombat.markerStyle"),
                                 new String[] {
                                     tr("steincombat.markerStyle.footprints"),
                                     tr("steincombat.markerStyle.square")
@@ -241,23 +273,58 @@ final class CombatPage {
                                     c.markerStyle = i;
                                     mod.save();
                                 })
-                        .visibleWhen(() -> c.hideStyle != ClanGuard.GHOST && c.presenceMarker));
+                        .visibleWhen(() -> clanGone.getAsBoolean() && c.presenceMarker));
         page.option(
                 toggle(
-                                INDENT + INDENT + tr("steincombat.markerColored"),
+                                INDENT + INDENT + INDENT + tr("steincombat.markerColored"),
                                 () -> c.markerColored,
                                 v -> c.markerColored = v)
-                        .visibleWhen(() -> c.hideStyle != ClanGuard.GHOST && c.presenceMarker));
+                        .visibleWhen(() -> clanGone.getAsBoolean() && c.presenceMarker));
+        // The allies in the Fight View: ghosts that still take every hit, or as they are.
+        page.option(
+                Option.cycle(
+                        INDENT + tr("steincombat.view.allies"),
+                        new String[] {
+                            tr("steincombat.view.visibles"), tr("steincombat.view.ghosts")
+                        },
+                        () -> c.ghostAllies ? 1 : 0,
+                        i -> {
+                            c.ghostAllies = i == 1;
+                            mod.save();
+                        }));
+        page.option(
+                ghostName(
+                                INDENT,
+                                "steincombat.allyGhostName",
+                                () -> c.allyGhostName,
+                                i -> c.allyGhostName = i)
+                        .visibleWhen(() -> c.ghostAllies));
+        // Everyone else wearing all their armor (whoever Armor Gap does not mark): ghosts or not.
+        page.option(
+                Option.cycle(
+                        INDENT + tr("steincombat.view.armored"),
+                        new String[] {
+                            tr("steincombat.view.visibles"), tr("steincombat.view.ghosts")
+                        },
+                        () -> c.ghostArmored ? 1 : 0,
+                        i -> {
+                            c.ghostArmored = i == 1;
+                            mod.save();
+                        }));
         page.restore(
                 () -> {
                     CombatConfig d = new CombatConfig();
                     c.protectAllies = d.protectAllies;
                     c.clanHitThrough = d.clanHitThrough;
                     c.hideStyle = d.hideStyle;
+                    c.clanInView = d.clanInView;
                     c.clanGhostName = d.clanGhostName;
                     c.presenceMarker = d.presenceMarker;
                     c.markerStyle = d.markerStyle;
                     c.markerColored = d.markerColored;
+                    c.ghostAllies = d.ghostAllies;
+                    c.allyGhostName = d.allyGhostName;
+                    c.ghostArmored = d.ghostArmored;
                     mod.save();
                     keys.clanProtect.setKey(Keys.KEY_NONE);
                     keys.hide.setKey(Keys.KEY_H);
@@ -265,21 +332,13 @@ final class CombatPage {
     }
 
     /**
-     * The allies (marked nicks and allied clans): never hidden nor protected — with the hide key at
-     * most ghosts that still take every hit — and the enemies by tag.
+     * The allies (marked nicks and allied clans): never hidden nor protected (how they look in the
+     * Fight View is in my clan's section) — and the enemies by tag.
      */
     private void allies(Page page) {
         page.section(tr("steincombat.section.allies"));
         page.option(
                 toggle(tr("steincombat.clanAllies"), () -> c.clanAllies, v -> c.clanAllies = v));
-        page.option(
-                toggle(tr("steincombat.ghostAllies"), () -> c.ghostAllies, v -> c.ghostAllies = v));
-        page.option(
-                ghostName(
-                                "steincombat.allyGhostName",
-                                () -> c.allyGhostName,
-                                i -> c.allyGhostName = i)
-                        .visibleWhen(() -> c.ghostAllies));
         // Off by default: it is what made "[VIP]" and "[ADM]" enemies on a server that is not about
         // clans.
         page.option(
@@ -291,8 +350,6 @@ final class CombatPage {
                 () -> {
                     CombatConfig d = new CombatConfig();
                     c.clanAllies = d.clanAllies;
-                    c.ghostAllies = d.ghostAllies;
-                    c.allyGhostName = d.allyGhostName;
                     c.enemyFromPrefix = d.enemyFromPrefix;
                     mod.save();
                 });
@@ -300,9 +357,12 @@ final class CombatPage {
 
     /** What a group's ghosts show above their heads: the name, only the clan tag, or nothing. */
     private Option ghostName(
-            String key, java.util.function.IntSupplier get, java.util.function.IntConsumer set) {
+            String indent,
+            String key,
+            java.util.function.IntSupplier get,
+            java.util.function.IntConsumer set) {
         return Option.cycle(
-                INDENT + tr(key),
+                indent + INDENT + tr(key),
                 new String[] {
                     tr("steincombat.ghostName.shown"),
                     tr("steincombat.ghostName.clanTag"),

@@ -50,6 +50,12 @@ public final class TargetConfig {
     /** Entering, leaving and health changes animated. */
     public boolean animation = true;
 
+    /**
+     * A small clock with how long ago the server last changed the health and the items (from 2
+     * seconds on).
+     */
+    public boolean updateAge = true;
+
     // Place and enabled belong to the Loader's grid: these are the factory ones. Beside the
     // crosshair, a little below: the fight happens there, and the eye need not leave the target.
 

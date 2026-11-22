@@ -98,6 +98,8 @@ final class ConfigFile {
             c.hideStyle = clamp(o.get("hideStyle").getAsInt(), 0, ClanGuard.GONE);
         }
         c.ghostAllies = bool(o, "ghostAllies", c.ghostAllies);
+        c.clanInView = bool(o, "clanInView", c.clanInView);
+        c.ghostArmored = bool(o, "ghostArmored", c.ghostArmored);
         c.ghostHideName = bool(o, "ghostHideName", c.ghostHideName);
         // the old single switch is where the two choices start, for files without them
         int names = c.ghostHideName ? CombatConfig.NAME_HIDDEN : CombatConfig.NAME_SHOWN;
@@ -233,6 +235,8 @@ final class ConfigFile {
         o.addProperty("protectAllies", c.protectAllies);
         o.addProperty("hideStyle", c.hideStyle);
         o.addProperty("ghostAllies", c.ghostAllies);
+        o.addProperty("clanInView", c.clanInView);
+        o.addProperty("ghostArmored", c.ghostArmored);
         o.addProperty("ghostHideName", c.ghostHideName);
         o.addProperty("clanGhostName", c.clanGhostName);
         o.addProperty("allyGhostName", c.allyGhostName);

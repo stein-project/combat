@@ -59,6 +59,17 @@ final class ConfigFileItems {
         c.radarDistance = integer(o, "radarDistance", c.radarDistance, 8, 64);
         c.radarArrows = bool(o, "radarArrows", c.radarArrows);
         c.radarSound = bool(o, "radarSound", c.radarSound);
+        c.armorGap = bool(o, "armorGap", c.armorGap);
+        c.armorGapMissing = integer(o, "armorGapMissing", c.armorGapMissing, 1, 4);
+        c.armorGapProtection = integer(o, "armorGapProtection", c.armorGapProtection, 0, 10);
+        c.armorGapStyle = integer(o, "armorGapStyle", c.armorGapStyle, 0, 2);
+        if (o.has("armorGapColor")) {
+            String s = o.get("armorGapColor").getAsString();
+            if (s.length() == 1 && CombatConfig.COLORS.indexOf(s.charAt(0)) >= 0) {
+                c.armorGapColor = s.charAt(0);
+            }
+        }
+        c.armorGapRange = integer(o, "armorGapRange", c.armorGapRange, 8, 64);
         c.supplyForecast = bool(o, "supplyForecast", c.supplyForecast);
         c.forecastWorn = bool(o, "forecastWorn", c.forecastWorn);
         c.forecastInventory = bool(o, "forecastInventory", c.forecastInventory);
@@ -94,6 +105,12 @@ final class ConfigFileItems {
         o.addProperty("radarDistance", c.radarDistance);
         o.addProperty("radarArrows", c.radarArrows);
         o.addProperty("radarSound", c.radarSound);
+        o.addProperty("armorGap", c.armorGap);
+        o.addProperty("armorGapMissing", c.armorGapMissing);
+        o.addProperty("armorGapProtection", c.armorGapProtection);
+        o.addProperty("armorGapStyle", c.armorGapStyle);
+        o.addProperty("armorGapColor", String.valueOf(c.armorGapColor));
+        o.addProperty("armorGapRange", c.armorGapRange);
         o.addProperty("supplyForecast", c.supplyForecast);
         o.addProperty("forecastWorn", c.forecastWorn);
         o.addProperty("forecastInventory", c.forecastInventory);
