@@ -22,7 +22,6 @@ final class CombatKeys {
 
     private final SteinCombat mod;
 
-    final Keys.Binding toggleSprint;
     final Keys.Binding autoWalk;
     final Keys.Binding ally;
     final Keys.Binding enemy;
@@ -49,7 +48,6 @@ final class CombatKeys {
     /** Registers the bindings with the game; in afterStartGame. */
     CombatKeys(SteinCombat mod) {
         this.mod = mod;
-        toggleSprint = Keys.bind("key.steincombat.toggleSprint", Keys.KEY_G, CATEGORY);
         autoWalk = Keys.bind("key.steincombat.autoWalk", Keys.KEY_J, CATEGORY);
         ally = Keys.bind("key.steincombat.ally", Keys.KEY_Y, CATEGORY);
         enemy = Keys.bind("key.steincombat.enemy", Keys.KEY_U, CATEGORY);
@@ -71,12 +69,6 @@ final class CombatKeys {
     /** Every tick: the presses since the last one, in order. */
     void handle() {
         CombatConfig c = mod.config;
-        while (toggleSprint.consumeClick()) {
-            c.toggleSprint = !c.toggleSprint;
-            mod.save();
-            Say.actionBar(
-                    Lang.tr(c.toggleSprint ? "steincombat.sprintOn" : "steincombat.sprintOff"));
-        }
         while (autoWalk.consumeClick()) {
             mod.autoWalk.toggle();
             Say.actionBar(

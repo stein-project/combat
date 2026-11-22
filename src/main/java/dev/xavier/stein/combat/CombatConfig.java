@@ -40,8 +40,18 @@ final class CombatConfig {
     /** Another clan that is not allied: red. */
     char enemyColor = 'c';
 
-    /** Toggle sprint: the mod keeps sprinting without the game's sprint key (the G key). */
+    /**
+     * Toggle sprint as it was when it lived here (it moved to the Sprint mod). No longer used: kept
+     * in the file so Sprint's first start brings the player's choice along.
+     */
     boolean toggleSprint = true;
+
+    /**
+     * The key the player had chosen for toggle sprint here, copied from options.txt before the game
+     * drops the line (this Combat no longer registers that key); null if never seen. Read by
+     * Sprint's first start.
+     */
+    Integer legacySprintKey;
 
     /** A hit on my clan is cancelled. Allies outside my clan are never protected. */
     boolean protectAllies = true;

@@ -14,8 +14,8 @@ import dev.xavier.stein.loader.api.Screens;
 
 /**
  * Auto Walk: its key starts walking forward without holding the game's forward key — the mod keeps
- * it pressed — and pressing it again stops. With toggle sprint on, the walk is a sprint ({@link
- * ToggleSprint} holds the sprint key). Pressing forward or back by hand also stops it: the player
+ * it pressed — and pressing it again stops. With the Sprint mod's toggle sprint on, the walk is a
+ * sprint (Sprint holds the sprint key). Pressing forward or back by hand also stops it: the player
  * takes the keys back. It pauses in menus (nobody walks off a cliff with the inventory open) and
  * turns off outside a world.
  */
@@ -38,7 +38,7 @@ final class AutoWalk {
         on = !on;
     }
 
-    /** Every tick, before {@link ToggleSprint#tick}; not allowed, it stays off on this server. */
+    /** Every tick; not allowed, it stays off on this server. */
     void tick(boolean allowed) {
         boolean down = pressedByHand();
         if (!allowed || Players.self() == null || down && !wasDown) {

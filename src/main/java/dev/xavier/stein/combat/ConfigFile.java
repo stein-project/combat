@@ -90,6 +90,9 @@ final class ConfigFile {
      */
     private static void read(CombatConfig c, JsonObject o) {
         c.toggleSprint = bool(o, "toggleSprint", c.toggleSprint);
+        if (o.has("legacySprintKey")) {
+            c.legacySprintKey = o.get("legacySprintKey").getAsInt();
+        }
         c.protectAllies = bool(o, "protectAllies", c.protectAllies);
         if (o.has("hideStyle")) {
             c.hideStyle = clamp(o.get("hideStyle").getAsInt(), 0, ClanGuard.GONE);
@@ -224,6 +227,9 @@ final class ConfigFile {
     static void save(CombatConfig c, File file) {
         JsonObject o = new JsonObject();
         o.addProperty("toggleSprint", c.toggleSprint);
+        if (c.legacySprintKey != null) {
+            o.addProperty("legacySprintKey", c.legacySprintKey);
+        }
         o.addProperty("protectAllies", c.protectAllies);
         o.addProperty("hideStyle", c.hideStyle);
         o.addProperty("ghostAllies", c.ghostAllies);

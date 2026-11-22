@@ -39,11 +39,12 @@ import dev.xavier.stein.loader.api.Screens;
  * and only gives it back when the client stops and starts sprinting again — with no W-tap, only the
  * first hit of a fight has the sprint knockback (measured: 1 in 60). So each time a hit lands (the
  * server's damage status for the entity just attacked, SteinMod.onEntityHurt), sprinting stops for
- * a tick and comes back ({@link ToggleSprint#reset}), and the next hit that lands has the sprint
+ * a tick and comes back ({@link SprintLink#reset}), and the next hit that lands has the sprint
  * knockback (measured: 92% with the 1.8 delay, no hit lost). Nothing to measure about the server.
  * At most one every {@link #WTAP_MIN_GAP} ticks, so a server with no hit delay does not keep the
  * player from sprinting at all; with a delay that short the reset does not fit before the next hit
- * anyway. It needs Toggle Sprint holding the sprint key (a key held by hand stays the player's).
+ * anyway. It needs the Sprint mod's toggle sprint holding the sprint key (a key held by hand stays
+ * the player's); without the Sprint mod there is no W-tap.
  */
 final class Autoclick {
 
@@ -133,7 +134,7 @@ final class Autoclick {
             wtapPending = false;
             if (triggered(mod.config) && tick - lastWtap >= WTAP_MIN_GAP) {
                 lastWtap = tick;
-                mod.sprint.reset(); // a hit landed: stop now, sprint again next tick
+                SprintLink.reset(); // a hit landed: stop now, sprint again next tick
             }
         }
     }
