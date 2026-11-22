@@ -133,7 +133,10 @@ final class PresenceMarker {
 
     private boolean on() {
         CombatConfig c = mod.config;
-        return mod.guard.hiding && c.presenceMarker && c.hideStyle != ClanGuard.GHOST;
+        return mod.guard.hiding
+                && c.presenceMarker
+                && !c.clanInView
+                && c.hideStyle != ClanGuard.GHOST;
     }
 
     /** Every tick: a new print for each hidden ally who covered a stride on the ground. */

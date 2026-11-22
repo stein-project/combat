@@ -63,6 +63,9 @@ public final class SteinCombat implements SteinMod {
     private File targetFile;
     private TargetHud targetHud;
 
+    /** What the server shows of other players, and how old it is (the target element). */
+    final TargetIntel targetIntel = new TargetIntel();
+
     /** Changes when the target's cached texts may be stale: once a second. */
     int textEpoch;
 
@@ -89,6 +92,7 @@ public final class SteinCombat implements SteinMod {
     final Supplies supplies = new Supplies(this);
     private final Diagnostics diagnostics = new Diagnostics(this);
     private final PresenceMarker marker = new PresenceMarker(this);
+    final ArmorGap armorGap = new ArmorGap(this);
 
     /** Ticks since Auto Armor last touched the inventory. */
     private int armorQuiet = 100;
@@ -129,7 +133,7 @@ public final class SteinCombat implements SteinMod {
         targetConfig = TargetConfigFile.load(targetFile, log());
         // Written at once: from here on this file is the one that counts.
         TargetConfigFile.save(targetConfig, targetFile, log());
-        targetHud = new TargetHud(targetConfig, this);
+        targetHud = new TargetHud(targetConfig, this, targetIntel);
         Hud.register(targetHud);
         log().info(
                         "started ("
@@ -159,6 +163,7 @@ public final class SteinCombat implements SteinMod {
     @Override
     public void onJoinGame() {
         remote.joined();
+        targetIntel.joined();
         apply();
         if (config.remote) {
             remote.fetch(false);
@@ -219,8 +224,17 @@ public final class SteinCombat implements SteinMod {
     public boolean onEntityHurt(Object entity) {
         if (entity != Entities.self()) {
             autoclick.targetHurt(entity);
+            targetIntel.hurt(entity);
         }
         return false;
+    }
+
+    /** The server's death status: the target element shows them dead. */
+    @Override
+    public void onEntityDeath(Object entity) {
+        if (targetHud != null) {
+            targetHud.died(entity);
+        }
     }
 
     /** The player's health went down: Auto Armor checks whether the worn armor wore. */
@@ -238,6 +252,28 @@ public final class SteinCombat implements SteinMod {
                 autoclick.targetHurt(entity);
             }
         }
+        if (entity != Entities.self()) {
+            targetIntel.healthChanged(entity, oldHealth + oldAbsorption, newHealth + newAbsorption);
+            if (targetHud != null && looksDead(entity, oldHealth, newHealth)) {
+                targetHud.died(entity);
+            }
+        }
+    }
+
+    /**
+     * Health at 0, or back to full in one step from half or less: what a server that respawns at
+     * once (or fakes the death and heals) looks like from here. Nothing heals that much at once in
+     * the game (Instant Health II is 4 hearts). Not judged where the server hides the health.
+     */
+    private boolean looksDead(Object entity, float oldHealth, float newHealth) {
+        if (oldHealth <= 0) {
+            return false;
+        }
+        if (newHealth <= 0) {
+            return true;
+        }
+        float max = Entities.maxHealth(entity);
+        return !targetIntel.healthHidden() && newHealth >= max && oldHealth <= max * 0.5F;
     }
 
     /** After changing the options: saves, rebuilds the lists and tells the Loader. */
@@ -288,6 +324,7 @@ public final class SteinCombat implements SteinMod {
             autoclick.frame();
         }
         marker.frame(partialTicks);
+        armorGap.frame();
         if (Server.allows("lootRadar")) {
             lootRadar.frame(partialTicks);
         }
@@ -341,6 +378,7 @@ public final class SteinCombat implements SteinMod {
         }
         autoWalk.tick(Server.allows("autoWalk"));
         marker.tick();
+        armorGap.tick(Server.allows("armorGap"));
         if (Server.allows("autoclick")) {
             autoclick.tick();
         }
@@ -355,6 +393,7 @@ public final class SteinCombat implements SteinMod {
             return true;
         }
         autoclick.attacked(target); // the W-tap follows when it lands
+        targetIntel.attacked(target);
         if (targetHud != null) {
             targetHud.hit(target);
         }
@@ -375,6 +414,12 @@ public final class SteinCombat implements SteinMod {
     @Override
     public boolean onGhostEntity(Object entity) {
         return guard.onGhostEntity(entity);
+    }
+
+    /** Armor Gap's glow. */
+    @Override
+    public int onEntityColor(Object entity, int color) {
+        return armorGap.color(entity, color);
     }
 
     @Override

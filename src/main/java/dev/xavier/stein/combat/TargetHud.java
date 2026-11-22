@@ -32,14 +32,22 @@ import java.util.Locale;
  * <p>The items are the ones the server sends for each player (the equipment packet carries the
  * whole item, with enchantments and damage), drawn by {@link Render#item}, the inventory's own
  * drawing: resource packs and CIT apply here too.
+ *
+ * <p>Where the server hides the health or the wear ({@link TargetIntel}), the element says so
+ * instead of showing its numbers; a target that dies shows dead for a moment ({@link
+ * TargetTracker#died}).
  */
 final class TargetHud extends GridElement {
 
     private static final int HEAD = 24;
     private static final int BAR_W = 100;
 
+    /** Room kept to the right of the bar and the items for the update age. */
+    private static final int AGE_W = 24;
+
     private final TargetConfig c;
     private final TargetTracker tracker;
+    private final TargetIntel intel;
 
     /** What is on screen now. */
     private Object target;
@@ -88,10 +96,16 @@ final class TargetHud extends GridElement {
     private String durSetting;
     private int durEpoch = -1;
 
-    TargetHud(TargetConfig c, SteinCombat mod) {
+    TargetHud(TargetConfig c, SteinCombat mod, TargetIntel intel) {
         super("steinhud.target", c, mod);
         this.c = c;
         this.tracker = new TargetTracker(c, mod.log());
+        this.intel = intel;
+    }
+
+    /** A player died: if it is the one on screen, it shows dead for a moment. */
+    void died(Object entity) {
+        tracker.died(entity);
     }
 
     /** You hit someone (the attack click, before it goes to the server). */
@@ -153,6 +167,9 @@ final class TargetHud extends GridElement {
             }
         }
         boolean live = target != null;
+        if (live) {
+            intel.watch(target, now);
+        }
         float want = live || preview ? 1 : 0;
         shown = c.animation ? approach(shown, want, dt * 6) : want;
         if (live) {
@@ -181,7 +198,9 @@ final class TargetHud extends GridElement {
                             ? shownHealth
                             : approach(trailHealth, shownHealth, dt * 6);
         }
-        int right = Math.max(c.healthBar ? BAR_W : 0, itemCount * 18 - 2);
+        int age = c.updateAge ? AGE_W : 0;
+        int right =
+                Math.max(c.healthBar ? BAR_W + age : 0, itemCount > 0 ? itemCount * 18 + age : 0);
         right = Math.max(right, updateTitle());
         w = (c.head ? HEAD + 4 : 0) + right;
         h = Math.max(c.head ? HEAD : 0, lines());
@@ -210,6 +229,10 @@ final class TargetHud extends GridElement {
         health = Entities.health(l);
         maxHealth = Math.max(1, Entities.maxHealth(l));
         absorption = Entities.absorption(l);
+        if (tracker.isDead(l)) {
+            health = 0;
+            absorption = 0;
+        }
         Object me = Entities.self();
         distance = me != null ? Entities.distance(me, l) : 0;
         if (c.armor) {
@@ -234,11 +257,19 @@ final class TargetHud extends GridElement {
     private void logDamage() {
         StringBuilder d = new StringBuilder();
         for (int i = 0; i < itemCount; i++) {
-            d.append(Stacks.damage(items[i]))
+            d.append(Stacks.id(items[i]))
+                    .append(':')
+                    .append(Stacks.damage(items[i]))
                     .append('@')
                     .append(System.identityHashCode(items[i]))
                     .append(' ');
         }
+        d.append("health ")
+                .append(health)
+                .append('+')
+                .append(absorption)
+                .append(" alive ")
+                .append(Entities.isAlive(drawn));
         String now = d.toString();
         if (!now.equals(loggedDamage)) {
             log().info("target " + drawnNick + " wear: " + now);
@@ -337,19 +368,45 @@ final class TargetHud extends GridElement {
             Render.text(title, x, y + 1, Render.alpha(0xFF000000 | color, a), true);
             y += 10;
         }
+        boolean real = drawn != null;
+        long now = System.nanoTime();
         if (c.healthBar || c.healthText) {
-            if (c.healthBar) {
-                bar(x, y, a);
+            String state = !real ? null : tracker.isDead(drawn) ? "hud.target.dead" : null;
+            if (state == null && real && intel.healthHidden()) {
+                state = "hud.target.healthHidden";
             }
-            if (c.healthText) {
-                healthText(x, y, a);
+            if (state != null) {
+                stateText(tr(state), x, y, a, state.endsWith("dead"));
+            } else {
+                if (c.healthBar) {
+                    bar(x, y, a);
+                }
+                if (c.healthText) {
+                    healthText(x, y, a);
+                }
+                if (real && c.updateAge) {
+                    String age = intel.healthAge(now);
+                    if (!age.isEmpty()) {
+                        TargetIntel.drawAge(age, x + (c.healthBar ? BAR_W + 3 : hpWidth + 3), y, a);
+                    }
+                }
             }
             y += c.healthBar ? 9 : 10;
+        }
+        boolean wear = !(real && intel.wearHidden());
+        if (real && c.updateAge && itemCount > 0) {
+            String age = intel.wearAge(now);
+            if (!age.isEmpty()) {
+                TargetIntel.drawAge(age, x + itemCount * 18 + 1, y + 5, a);
+            }
         }
         for (int i = 0; i < itemCount; i++) {
             int ix = x + i * 18;
             Object s = items[i];
-            Render.item(s, ix, y, c.durabilityBar);
+            Render.item(s, ix, y, c.durabilityBar && wear);
+            if (!wear) {
+                continue;
+            }
             String d = durability(i, s);
             if (!d.isEmpty()) {
                 Render.push();
@@ -359,6 +416,21 @@ final class TargetHud extends GridElement {
                 Render.pop();
             }
         }
+        Render.pop();
+    }
+
+    /**
+     * In place of the health: a short line (dead, or the server hides the health), small inside the
+     * bar's place.
+     */
+    private void stateText(String text, int x, int y, float a, boolean dead) {
+        if (c.healthBar) {
+            Render.rect(x, y, BAR_W, 6, Render.alpha(0xFF1A1A1A, a * 0.8F));
+        }
+        Render.push();
+        Render.translate(x + 1, y + 1);
+        Render.scale(0.5F);
+        Render.text(text, 0, 0, Render.alpha(dead ? 0xFFFF5555 : 0xFFA0A0A0, a), true);
         Render.pop();
     }
 
@@ -499,5 +571,6 @@ final class TargetHud extends GridElement {
                         () -> Math.max(0, Arrays.asList(display).indexOf(c.durability)),
                         i -> c.durability = display[i]));
         out.add(Option.toggle(tr("hud.target.animation"), () -> c.animation, v -> c.animation = v));
+        out.add(Option.toggle(tr("hud.target.updateAge"), () -> c.updateAge, v -> c.updateAge = v));
     }
 }

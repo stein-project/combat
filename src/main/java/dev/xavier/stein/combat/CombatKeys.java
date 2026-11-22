@@ -41,6 +41,7 @@ final class CombatKeys {
     final Keys.Binding itemLock;
     final Keys.Binding autoTrash;
     final Keys.Binding lootRadar;
+    final Keys.Binding armorGap;
 
     /** Supply Tracker: starts a rush, or ends the one running. */
     final Keys.Binding forecastRush;
@@ -63,6 +64,7 @@ final class CombatKeys {
         itemLock = Keys.bind("key.steincombat.itemLock", Keys.KEY_NONE, CATEGORY);
         autoTrash = Keys.bind("key.steincombat.autoTrash", Keys.KEY_NONE, CATEGORY);
         lootRadar = Keys.bind("key.steincombat.lootRadar", Keys.KEY_NONE, CATEGORY);
+        armorGap = Keys.bind("key.steincombat.armorGap", Keys.KEY_NONE, CATEGORY);
         forecastRush = Keys.bind("key.steincombat.forecastRush", Keys.KEY_NONE, CATEGORY);
     }
 
@@ -127,6 +129,10 @@ final class CombatKeys {
         while (autoTrash.consumeClick()) {
             c.autoTrash = !c.autoTrash;
             toggled("steincombat.autoTrash", c.autoTrash);
+        }
+        while (armorGap.consumeClick()) {
+            c.armorGap = !c.armorGap;
+            toggled("steincombat.armorGap", c.armorGap);
         }
         while (lootRadar.consumeClick()) {
             c.lootRadar = !c.lootRadar;

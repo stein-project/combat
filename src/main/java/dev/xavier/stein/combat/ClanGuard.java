@@ -10,6 +10,7 @@ package dev.xavier.stein.combat;
 
 import dev.xavier.stein.loader.api.Chat;
 import dev.xavier.stein.loader.api.Entities;
+import dev.xavier.stein.loader.api.Server;
 import dev.xavier.stein.loader.api.Targeting;
 
 /**
@@ -19,6 +20,13 @@ import dev.xavier.stein.loader.api.Targeting;
  * ({@link CombatConfig#hideStyle}). The other allies — marked nicks and allied clans — are never
  * shielded: they are always seen and always hit, and the hide key can at most turn them into ghosts
  * ({@link CombatConfig#ghostAllies}) that still take every hit.
+ *
+ * <p>The hide key is the Fight View: what it does to each group is chosen apart — my clan stays
+ * visible ({@link CombatConfig#clanInView}) or hides in its style, allies become ghosts or not, and
+ * everyone else wearing all their armor (whoever Armor Gap does not mark) becomes a ghost with
+ * {@link CombatConfig#ghostArmored}. My clan, gone, my allies as ghosts and the fully armored as
+ * ghosts is the "focus" view: only the players missing armor stay solid. Nobody but my clan is ever
+ * shielded: every ghost still takes every hit.
  */
 final class ClanGuard {
 
@@ -147,17 +155,22 @@ final class ClanGuard {
     private boolean shielded(Object entity, String nick) {
         return mod.teams.isClanmate(nick)
                 && (mod.config.protectAllies
-                        || hidden(entity) && mod.config.hideStyle != DISAPPEAR);
+                        || clanHidden(entity) && mod.config.hideStyle != DISAPPEAR);
     }
 
     /** A hidden clanmate that hits go through: the ghost and gone styles. */
     private boolean passesThrough(Object entity, String nick) {
-        return mod.config.hideStyle != DISAPPEAR && hidden(entity) && mod.teams.isClanmate(nick);
+        return mod.config.hideStyle != DISAPPEAR
+                && clanHidden(entity)
+                && mod.teams.isClanmate(nick);
     }
 
-    /** The hide key is on and it is another player (never me, in third person). */
-    private boolean hidden(Object entity) {
-        return hiding && entity != Entities.self();
+    /**
+     * The Fight View is on, it hides my clan (not left visible) and it is another player (never me,
+     * in third person).
+     */
+    private boolean clanHidden(Object entity) {
+        return hiding && !mod.config.clanInView && entity != Entities.self();
     }
 
     /**
@@ -167,7 +180,10 @@ final class ClanGuard {
      * Allies outside my clan never disappear.
      */
     boolean onHideEntity(Object entity) {
-        if (!hiding || mod.config.hideStyle == GHOST || !Entities.isPlayer(entity)) {
+        if (!hiding
+                || mod.config.clanInView
+                || mod.config.hideStyle == GHOST
+                || !Entities.isPlayer(entity)) {
             return false;
         }
         return entity != Entities.self() && mod.teams.isClanmate(Entities.name(entity));
@@ -186,9 +202,23 @@ final class ClanGuard {
         }
         String nick = Entities.name(entity);
         if (mod.teams.isClanmate(nick)) {
-            return mod.config.hideStyle == GHOST;
+            return !mod.config.clanInView && mod.config.hideStyle == GHOST;
         }
-        return mod.config.ghostAllies && mod.teams.isAlly(nick);
+        if (mod.teams.isAlly(nick)) {
+            return mod.config.ghostAllies;
+        }
+        return armoredGhost(entity);
+    }
+
+    /**
+     * Anyone else (enemy or neutral) wearing all their armor — whoever Armor Gap does not mark:
+     * missing no piece, protected enough, or out of its range — as a ghost, with "Fully armored"
+     * on. Where the server does not allow Armor Gap, nobody: it would tell the same thing.
+     */
+    private boolean armoredGhost(Object entity) {
+        return mod.config.ghostArmored
+                && Server.allows("armorGap")
+                && !mod.armorGap.isMarked(entity);
     }
 
     /**
@@ -203,7 +233,11 @@ final class ClanGuard {
             return null;
         }
         String nick = Entities.name(entity);
-        int mode = mod.teams.isClanmate(nick) ? mod.config.clanGhostName : mod.config.allyGhostName;
+        boolean clan = mod.teams.isClanmate(nick);
+        if (!clan && !mod.teams.isAlly(nick)) {
+            return null; // a fully armored enemy or neutral keeps their name
+        }
+        int mode = clan ? mod.config.clanGhostName : mod.config.allyGhostName;
         if (mode == CombatConfig.NAME_SHOWN) {
             return null;
         }
