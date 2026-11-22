@@ -100,7 +100,7 @@ final class ActiveFeatures implements HudElement {
         }
         if (want.isEmpty() && preview) {
             want.add(Features.ALL.get(0));
-            want.add(Features.byId("toggleSprint"));
+            want.add(Features.byId("autoWalk"));
         }
         animate(step);
         rows.clear();

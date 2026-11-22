@@ -127,6 +127,10 @@ final class CombatPage {
                             mod.save();
                         },
                         v -> (int) Math.round(v) + " CPS"));
+        // The W-tap after each hit needs Sprint's toggle sprint: say so when Sprint is missing.
+        page.option(
+                Option.action(INDENT + tr("steincombat.autoclick.wtapNeedsSprint"), "", () -> {})
+                        .visibleWhen(() -> !SprintLink.available()));
         page.restore(
                 () -> {
                     CombatConfig d = new CombatConfig();
@@ -141,21 +145,10 @@ final class CombatPage {
                 });
     }
 
-    /** Movement: sprinting and walking. */
+    /** Movement: walking (toggle sprint moved to the Sprint mod). */
     private void movement(Page page) {
         page.section(tr("steincombat.section.movement"));
-        // Toggle sprint: the key (G) turns it on and off, and so does the row.
-        page.option(
-                feature(
-                        "steincombat.toggleSprintName",
-                        () -> c.toggleSprint,
-                        v -> {
-                            c.toggleSprint = v;
-                            mod.save();
-                        },
-                        keys.toggleSprint,
-                        "toggleSprint"));
-        // Auto Walk: its key (J) starts and stops it; with toggle sprint on, it sprints.
+        // Auto Walk: its key (J) starts and stops it; with Sprint's toggle sprint on, it sprints.
         AutoWalk walk = mod.autoWalk;
         page.option(
                 feature(
@@ -166,10 +159,6 @@ final class CombatPage {
                         "autoWalk"));
         page.restore(
                 () -> {
-                    CombatConfig d = new CombatConfig();
-                    c.toggleSprint = d.toggleSprint;
-                    mod.save();
-                    keys.toggleSprint.setKey(Keys.KEY_G);
                     keys.autoWalk.setKey(Keys.KEY_J);
                 });
     }

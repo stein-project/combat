@@ -28,9 +28,8 @@ import java.io.File;
  * Combat: Better Sprinting's sprint and BattleChatter's allies, in code of its own.
  *
  * <ul>
- *   <li>Toggle sprint key (G): sprinting without holding the game's sprint key ({@link
- *       ToggleSprint}). Auto Walk (J): walking forward without holding the game's key ({@link
- *       AutoWalk}) — a sprint with toggle sprint on.
+ *   <li>Auto Walk (J): walking forward without holding the game's key ({@link AutoWalk}) — a sprint
+ *       with the Sprint mod's toggle sprint on (toggle sprint moved there).
  *   <li>Allies: nicks and clans on a list (the Panel, or the Y key aimed at a player; with Shift,
  *       their clan), and the members of my clan (an option, on). What being an ally gives is <b>the
  *       name's color</b>, in the Tab list ({@code onPlayerListName}) and above the head ({@code
@@ -69,7 +68,6 @@ public final class SteinCombat implements SteinMod {
 
     private int ticks;
     final Teams teams = new Teams(this);
-    final ToggleSprint sprint = new ToggleSprint();
     final AutoWalk autoWalk = new AutoWalk();
     final ClanGuard guard = new ClanGuard(this);
     final RemoteList remote = new RemoteList(this);
@@ -102,6 +100,9 @@ public final class SteinCombat implements SteinMod {
         configFile = ctx.configFile();
         config = ConfigFile.load(configFile);
         keys = new CombatKeys(this);
+        if (SprintLink.rememberOldKey(configFile.getParentFile().getParentFile(), config)) {
+            save();
+        }
         apply();
         CombatApi.mod = this;
         // What this server calls a group, and who is what to the player: the Loader takes it to
@@ -340,7 +341,6 @@ public final class SteinCombat implements SteinMod {
         }
         autoWalk.tick(Server.allows("autoWalk"));
         marker.tick();
-        sprint.tick(config.toggleSprint && Server.allows("toggleSprint"));
         if (Server.allows("autoclick")) {
             autoclick.tick();
         }

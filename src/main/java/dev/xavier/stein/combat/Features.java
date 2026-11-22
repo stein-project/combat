@@ -55,11 +55,6 @@ final class Features {
                             m -> m.config.noHitDelay),
                     new Feature(
                             "autoclick", "steincombat.autoclick", COMBAT, m -> m.config.autoclick),
-                    new Feature(
-                            "toggleSprint",
-                            "steincombat.toggleSprintName",
-                            MOVEMENT,
-                            m -> m.config.toggleSprint),
                     new Feature("autoWalk", "steincombat.autoWalk", MOVEMENT, m -> m.autoWalk.on),
                     new Feature(
                             "clanProtect",
